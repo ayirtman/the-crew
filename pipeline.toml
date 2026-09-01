@@ -1,7 +1,7 @@
 [stages.intake]
 model = "haiku"
 auth = "subscription"
-max_turns = 2
+max_turns = 4
 max_attempts = 2
 max_output_tokens = 1500
 max_input_chars = 24000
@@ -10,7 +10,7 @@ max_seconds = 180
 [stages.plan]
 model = "haiku"
 auth = "subscription"
-max_turns = 2
+max_turns = 4
 max_attempts = 2
 max_output_tokens = 2500
 max_input_chars = 30000

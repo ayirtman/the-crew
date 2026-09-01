@@ -165,16 +165,19 @@ class ClaudeCliCaller:
             raise BudgetExceeded(
                 f"stage wall-clock exceeded {stage.max_seconds} seconds",
                 BudgetSnapshot(seconds_used=time.monotonic() - t0, seconds_cap=stage.max_seconds))
-        if proc.returncode != 0:
-            raise CallerError(f"claude exited {proc.returncode}: {(proc.stderr or proc.stdout or '')[-800:]}")
+        # claude exits non-zero on max_turns but may still have produced the structured output;
+        # salvage the JSON first and only then decide it failed.
         try:
-            raw = json.loads(proc.stdout)
+            raw = json.loads(proc.stdout or "")
         except json.JSONDecodeError as e:
+            if proc.returncode != 0:
+                raise CallerError(
+                    f"claude exited {proc.returncode}: {(proc.stderr or proc.stdout or '')[-800:]}") from e
             raise CallerError(f"claude stdout is not JSON: {proc.stdout[-400:]}") from e
-        if raw.get("is_error"):
-            raise CallerError(f"claude reported {raw.get('subtype')}: {str(raw.get('result'))[:400]}")
         structured = raw.get("structured_output")
         if structured is None:
+            if raw.get("is_error") or proc.returncode != 0:
+                raise CallerError(f"claude reported {raw.get('subtype')}: {str(raw.get('result'))[:400]}")
             raise SchemaInvalid(["no structured_output in result"], raw)
         try:
             parsed = schema.model_validate(structured)

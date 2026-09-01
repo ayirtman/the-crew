@@ -40,7 +40,7 @@ def test_argv_uses_json_schema_no_tools_and_subscription_safe_flags():
     argv = r.calls[0]["argv"]
     assert argv[:2] == ["claude", "-p"]
     assert "--json-schema" in argv and "--tools" in argv and argv[argv.index("--tools") + 1] == ""
-    assert "--max-turns" in argv and argv[argv.index("--max-turns") + 1] == "2"
+    assert "--max-turns" in argv and argv[argv.index("--max-turns") + 1] == "4"
     assert "--safe-mode" in argv and "--bare" not in argv
     assert "--append-system-prompt-file" in argv
     env = r.calls[0]["env"]
@@ -156,3 +156,19 @@ def test_retry_raises_schema_invalid_when_check_still_fails_on_last_attempt():
     with pytest.raises(SchemaInvalid, match="verb"):
         call_with_retry(c, system_file=Path("x.md"), user="idea", schema=BriefDraft,
                         stage=CFG.stages["intake"], attempts=2, check=lambda d: ["no verb"])
+
+
+def test_nonzero_exit_with_structured_output_is_salvaged():
+    stdout = _stdout_with(json.loads((FIX / "brief_good.json").read_text()))
+    r = FakeRunner(stdout, returncode=1)
+    res = ClaudeCliCaller(runner=r).call(system_file=Path("x.md"), user="i", schema=BriefDraft,
+                                         stage=CFG.stages["intake"])
+    assert isinstance(res.parsed, BriefDraft)
+
+
+def test_nonzero_exit_without_structured_output_is_still_an_error():
+    raw = json.loads((FIX / "claude_result_success.json").read_text())
+    raw["is_error"] = True
+    with pytest.raises(CallerError, match="max_turns|exited|reported"):
+        ClaudeCliCaller(runner=FakeRunner(json.dumps(raw), returncode=1)).call(
+            system_file=Path("x.md"), user="i", schema=BriefDraft, stage=CFG.stages["intake"])
