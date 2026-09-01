@@ -91,3 +91,45 @@ def test_cli_call_detaches_stdin_so_it_cannot_eat_the_pause_answer():
     r = FakeRunner(_stdout_with(json.loads((FIX / "brief_good.json").read_text())))
     ClaudeCliCaller(runner=r).call(system_file=Path("x.md"), user="i", schema=BriefDraft, stage=CFG.stages["intake"])
     assert r.calls[0]["kw"].get("stdin") == subprocess.DEVNULL
+
+
+from pipeline.llm import call_with_retry  # noqa: E402
+
+
+class FlakyCaller:
+    """Rejects the first N calls with SchemaInvalid, then returns the good draft."""
+
+    def __init__(self, bad_times, good):
+        self.bad_times, self.good, self.calls = bad_times, good, []
+
+    def call(self, *, system_file, user, schema, stage):
+        self.calls.append(user)
+        if len(self.calls) <= self.bad_times:
+            raise SchemaInvalid(["problem: vague word 'simple'"])
+        from pipeline.contracts import Usage
+        from pipeline.llm import CallResult
+        return CallResult(parsed=schema.model_validate(self.good), usage=Usage(input_tokens=7, output_tokens=3),
+                          cost_reported=0.01, num_turns=2, duration_ms=10, raw={})
+
+
+def test_retry_feeds_rejection_reasons_back_and_sums_usage():
+    good = json.loads((FIX / "brief_good.json").read_text())
+    c = FlakyCaller(1, good)
+    res = call_with_retry(c, system_file=Path("x.md"), user="idea", schema=BriefDraft,
+                          stage=CFG.stages["intake"], attempts=2)
+    assert len(c.calls) == 2
+    assert "vague word 'simple'" in c.calls[1] and c.calls[1].startswith("idea")
+    assert res.parsed.title == "URL Word Counter"
+    assert res.attempts == 2 and res.usage.input_tokens == 7
+
+
+def test_retry_gives_up_after_attempts_and_raises_last_reasons():
+    c = FlakyCaller(5, json.loads((FIX / "brief_good.json").read_text()))
+    with pytest.raises(SchemaInvalid, match="simple"):
+        call_with_retry(c, system_file=Path("x.md"), user="idea", schema=BriefDraft,
+                        stage=CFG.stages["intake"], attempts=2)
+    assert len(c.calls) == 2
+
+
+def test_intake_and_plan_use_the_configured_attempts():
+    assert CFG.stages["intake"].max_attempts == 2 and CFG.stages["plan"].max_attempts == 2

@@ -50,6 +50,59 @@ class StructuredCaller(Protocol):
     def call(self, *, system_file: Path, user: str, schema: type[T], stage: StageConfig) -> CallResult: ...
 
 
+@dataclass(frozen=True)
+class RetryResult:
+    parsed: BaseModel
+    usage: Usage
+    cost_reported: float
+    num_turns: int
+    duration_ms: int
+    attempts: int
+    rejections: list[list[str]]
+
+
+def call_with_retry(caller: StructuredCaller, *, system_file: Path, user: str, schema: type[T],
+                    stage: StageConfig, attempts: int) -> RetryResult:
+    """One bounded retry loop around a structured call.
+
+    A draft that breaks the contract is sent back with the reasons, at most `attempts` times in
+    total. The gate itself does not soften: after the last attempt the SchemaInvalid propagates.
+    Usage and cost are summed across attempts so the ledger sees the real price.
+    """
+    usage = Usage()
+    cost, turns, ms = 0.0, 0, 0
+    rejections: list[list[str]] = []
+    prompt = user
+    for i in range(1, max(1, attempts) + 1):
+        try:
+            r = caller.call(system_file=system_file, user=prompt, schema=schema, stage=stage)
+        except SchemaInvalid as e:
+            rejections.append(e.reasons)
+            raw = e.raw or {}
+            u = usage_from(raw)
+            usage = Usage(input_tokens=usage.input_tokens + u.input_tokens,
+                          output_tokens=usage.output_tokens + u.output_tokens,
+                          cache_creation_input_tokens=usage.cache_creation_input_tokens + u.cache_creation_input_tokens,
+                          cache_read_input_tokens=usage.cache_read_input_tokens + u.cache_read_input_tokens)
+            cost += float(raw.get("total_cost_usd") or 0.0)
+            turns += int(raw.get("num_turns") or 0)
+            ms += int(raw.get("duration_ms") or 0)
+            if i == attempts:
+                raise
+            prompt = (user + "\n\nYour previous answer was rejected by the contract for these reasons:\n"
+                      + "\n".join(f"- {x}" for x in e.reasons)
+                      + "\nFix every one of them and answer again. Keep everything else the same.")
+            continue
+        usage = Usage(input_tokens=usage.input_tokens + r.usage.input_tokens,
+                      output_tokens=usage.output_tokens + r.usage.output_tokens,
+                      cache_creation_input_tokens=usage.cache_creation_input_tokens + r.usage.cache_creation_input_tokens,
+                      cache_read_input_tokens=usage.cache_read_input_tokens + r.usage.cache_read_input_tokens)
+        return RetryResult(parsed=r.parsed, usage=usage, cost_reported=cost + r.cost_reported,
+                           num_turns=turns + r.num_turns, duration_ms=ms + r.duration_ms, attempts=i,
+                           rejections=rejections)
+    raise AssertionError("unreachable")
+
+
 Runner = Callable[..., subprocess.CompletedProcess]
 
 

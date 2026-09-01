@@ -18,6 +18,7 @@ class StageConfig(BaseModel):
     model_config = FROZEN
     model: str | None = None
     max_turns: int | None = None
+    max_attempts: int = 1
     max_output_tokens: int | None = None
     max_input_chars: int | None = None
     max_seconds: float

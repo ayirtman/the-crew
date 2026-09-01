@@ -192,7 +192,7 @@ class _Run:
             rec["evaluator_passed"] = True
             self.records.append(StageRecord(**rec))
             self.write_manifest("running", None)
-            log.info("[%s] ok %.0fs cost $%.4f -> %s", name, wall / 1000, cost, path.name)
+            log.info("[%s] ok %.0fs cost $%.4f attempts=%d -> %s", name, wall / 1000, cost, meta.attempts, path.name)
             key = STATE_KEY[name]
             out: dict = {f"{key}_path": str(path), f"{key}_sha": sha, "stage_records": [rec]}
             if name == "verify":
