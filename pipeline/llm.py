@@ -30,10 +30,16 @@ class CallerError(Exception):
 
 
 class SchemaInvalid(Exception):
-    def __init__(self, reasons: list[str], raw: dict | None = None):
+    """A draft the stage will not accept. kind is schema_invalid (contract) or evaluator_rejected
+    (the deterministic check); draft is the last rejected object when one parsed at all."""
+
+    def __init__(self, reasons: list[str], raw: dict | None = None, *, kind: str = "schema_invalid",
+                 draft: dict | None = None):
         super().__init__("; ".join(reasons))
         self.reasons = reasons
         self.raw = raw
+        self.kind = kind
+        self.draft = draft
 
 
 @dataclass(frozen=True)
@@ -62,7 +68,8 @@ class RetryResult:
 
 
 def call_with_retry(caller: StructuredCaller, *, system_file: Path, user: str, schema: type[T],
-                    stage: StageConfig, attempts: int) -> RetryResult:
+                    stage: StageConfig, attempts: int,
+                    check: Callable[[BaseModel], list[str]] | None = None) -> RetryResult:
     """One bounded retry loop around a structured call.
 
     A draft that breaks the contract is sent back with the reasons, at most `attempts` times in
@@ -76,6 +83,11 @@ def call_with_retry(caller: StructuredCaller, *, system_file: Path, user: str, s
     for i in range(1, max(1, attempts) + 1):
         try:
             r = caller.call(system_file=system_file, user=prompt, schema=schema, stage=stage)
+            reasons = check(r.parsed) if check else []
+            if reasons:
+                raise SchemaInvalid(reasons, dict(r.raw, total_cost_usd=r.cost_reported, num_turns=r.num_turns,
+                                                  duration_ms=r.duration_ms, usage=r.usage.model_dump()),
+                                    kind="evaluator_rejected", draft=r.parsed.model_dump())
         except SchemaInvalid as e:
             rejections.append(e.reasons)
             raw = e.raw or {}

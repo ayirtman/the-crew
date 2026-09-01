@@ -98,3 +98,14 @@ def test_build_with_plan_passes_when_test_files_written():
     p = plan(b)
     r = _build(["app/page.tsx", "app/api/count/route.ts", "lib/count.ts", "tests/count.test.ts"])
     assert evaluators.evaluate_build(r, p) == []
+
+
+def test_brief_accepts_any_verb_not_just_a_whitelist():
+    b = brief(must_have_behaviors=["Advance to the next word after each answer", "Show an error", "Disable the button"])
+    assert evaluators.evaluate_brief(b) == []
+
+
+def test_brief_rejects_behaviors_that_start_with_an_article_or_subject():
+    for bad in ("The count for a valid URL", "A list of words", "It shows the word", "Users can click", "There is a timer"):
+        b = brief(must_have_behaviors=[bad, "Show an error", "Disable the button"])
+        assert any("verb" in r for r in evaluators.evaluate_brief(b)), bad

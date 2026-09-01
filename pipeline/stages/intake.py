@@ -6,6 +6,7 @@ from pathlib import Path
 from pipeline.budget import BudgetExceeded
 from pipeline.config import Config
 from pipeline.contracts import Brief, BriefDraft, BudgetSnapshot
+from pipeline import evaluators
 from pipeline.llm import StructuredCaller, call_with_retry
 from pipeline.stages import CallMeta
 
@@ -20,8 +21,11 @@ def produce(*, idea_text: str, idea_sha: str, run_id: str, idea_id: str,
             f"intake input is {len(idea_text)} chars, cap {stage.max_input_chars}",
             BudgetSnapshot(tokens_used=len(idea_text) // 3, tokens_cap=stage.max_input_chars // 3))
     user = f"IDEA (id {idea_id}):\n\n{idea_text.strip()}\n\nProduce the Brief."
+    def check(draft: BriefDraft) -> list[str]:
+        return evaluators.evaluate_brief(Brief(run_id=run_id, idea_id=idea_id, parent=idea_sha, **draft.model_dump()))
+
     res = call_with_retry(caller, system_file=PROMPTS / "intake_system.md", user=user, schema=BriefDraft,
-                          stage=stage, attempts=stage.max_attempts)
+                          stage=stage, attempts=stage.max_attempts, check=check)
     draft: BriefDraft = res.parsed  # type: ignore[assignment]
     brief = Brief(run_id=run_id, idea_id=idea_id, parent=idea_sha, **draft.model_dump())
     meta = CallMeta(model=stage.model or "haiku", usage=res.usage, cost_reported=res.cost_reported,

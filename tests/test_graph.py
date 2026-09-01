@@ -102,7 +102,9 @@ def test_evaluator_rejection_is_a_failure_artifact(tmp_path):
                 run_id="r3", yes=True)
     f = StageFailure.model_validate_json((tmp_path / "runs" / "r3" / "01-failure.json").read_text())
     assert out.status == "failed" and f.kind == "evaluator_rejected" and any("verb" in r for r in f.reasons)
-    assert (tmp_path / "runs" / "r3" / "01-brief.json").exists()  # the rejected artifact is kept
+    assert not (tmp_path / "runs" / "r3" / "01-brief.json").exists()  # never accepted, so never an artifact
+    assert (tmp_path / "runs" / "r3" / "01-brief.rejected.json").exists()  # but the last draft is kept
+    assert f.rejected_artifact_path.endswith("01-brief.rejected.json")
 
 
 def test_run_time_cap_of_zero_stops_before_build(tmp_path):

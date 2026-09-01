@@ -10,20 +10,17 @@ import re
 from pipeline.contracts import Brief, BuildResult, Plan, TestReport
 from pipeline.stages.template import LOCKED_FILES
 
-_VERB_HINT = re.compile(r"^(return|show|display|render|disable|enable|reject|accept|validate|"
-                        r"save|store|list|count|fetch|send|submit|clear|reset|hide|open|close|"
-                        r"allow|prevent|respond|redirect|compute|calculate|sort|filter|update|"
-                        r"delete|create|add|remove|toggle|highlight|limit|refuse|warn|report|"
-                        r"convert|parse|format|persist|load|export|import|copy|paste|search|"
-                        r"select|mark|track|log|print|generate|produce|emit|serve|handle|"
-                        r"require|check|confirm|answer|reply|complete|finish|start|stop|"
-                        r"run|play|pause|record|keep|set|get|put|post)\b", re.I)
+# The failure shape seen in practice is a behavior written as a noun phrase or a sentence about
+# a subject ("The count...", "Users can..."). A whitelist of verbs rejects good behaviors, so the
+# check is the small blocklist of openers that are never an imperative verb.
+_NOT_A_VERB = re.compile(r"^(the|a|an|it|its|there|this|that|these|those|user|users|toddler|parent|"
+                         r"parents|page|app|system|when|if|should|must|can|will)\b", re.I)
 
 
 def evaluate_brief(b: Brief) -> list[str]:
     reasons: list[str] = []
     for i, beh in enumerate(b.must_have_behaviors):
-        if not _VERB_HINT.match(beh.strip()):
+        if _NOT_A_VERB.match(beh.strip()) or not beh.strip()[:1].isalpha():
             reasons.append(f"must_have_behaviors[{i}] does not start with a verb: '{beh}'")
     if b.api.method == "POST" and not b.api.input_fields:
         reasons.append("api.input_fields is empty for a POST endpoint")

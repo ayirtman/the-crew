@@ -133,3 +133,26 @@ def test_retry_gives_up_after_attempts_and_raises_last_reasons():
 
 def test_intake_and_plan_use_the_configured_attempts():
     assert CFG.stages["intake"].max_attempts == 2 and CFG.stages["plan"].max_attempts == 2
+
+
+def test_retry_also_feeds_back_check_reasons():
+    good = json.loads((FIX / "brief_good.json").read_text())
+    c = FlakyCaller(0, good)
+    seen = []
+
+    def check(draft):
+        seen.append(draft)
+        return ["must_have_behaviors[0] does not start with a verb"] if len(seen) == 1 else []
+
+    res = call_with_retry(c, system_file=Path("x.md"), user="idea", schema=BriefDraft,
+                          stage=CFG.stages["intake"], attempts=2, check=check)
+    assert len(c.calls) == 2 and "start with a verb" in c.calls[1]
+    assert res.attempts == 2 and res.rejections == [["must_have_behaviors[0] does not start with a verb"]]
+
+
+def test_retry_raises_schema_invalid_when_check_still_fails_on_last_attempt():
+    good = json.loads((FIX / "brief_good.json").read_text())
+    c = FlakyCaller(0, good)
+    with pytest.raises(SchemaInvalid, match="verb"):
+        call_with_retry(c, system_file=Path("x.md"), user="idea", schema=BriefDraft,
+                        stage=CFG.stages["intake"], attempts=2, check=lambda d: ["no verb"])

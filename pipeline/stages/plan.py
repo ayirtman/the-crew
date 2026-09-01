@@ -7,6 +7,7 @@ from pathlib import Path
 from pipeline.budget import BudgetExceeded
 from pipeline.config import Config
 from pipeline.contracts import Brief, BudgetSnapshot, Plan, PlanDraft
+from pipeline import evaluators
 from pipeline.llm import StructuredCaller, call_with_retry
 from pipeline.stages import CallMeta
 
@@ -32,8 +33,12 @@ def produce(*, brief: Brief, brief_sha: str, caller: StructuredCaller, cfg: Conf
     if stage.max_input_chars is not None and len(user) > stage.max_input_chars:
         raise BudgetExceeded(f"plan input is {len(user)} chars, cap {stage.max_input_chars}",
                              BudgetSnapshot(tokens_used=len(user) // 3, tokens_cap=stage.max_input_chars // 3))
+    def check(draft: PlanDraft) -> list[str]:
+        return evaluators.evaluate_plan(Plan(run_id=brief.run_id, parent=brief_sha, constraints=CONSTRAINTS,
+                                             **draft.model_dump()), brief)
+
     res = call_with_retry(caller, system_file=PROMPTS / "plan_system.md", user=user, schema=PlanDraft,
-                          stage=stage, attempts=stage.max_attempts)
+                          stage=stage, attempts=stage.max_attempts, check=check)
     draft: PlanDraft = res.parsed  # type: ignore[assignment]
     plan = Plan(run_id=brief.run_id, parent=brief_sha, constraints=CONSTRAINTS, **draft.model_dump())
     meta = CallMeta(model=stage.model or "haiku", usage=res.usage, cost_reported=res.cost_reported,

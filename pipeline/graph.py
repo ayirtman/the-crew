@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import functools
+import json
 import logging
 import operator
 import subprocess
@@ -159,7 +160,12 @@ class _Run:
                 rec["upstream_rejections"] = 1
                 return fail("schema_invalid", [f"upstream artifact rejected: {e}"])
             except SchemaInvalid as e:
-                return fail("schema_invalid", e.reasons)
+                rejected = None
+                if e.draft is not None:
+                    rp = self.run_dir / f"{seq:02d}-{ARTIFACT[name]}.rejected.json"
+                    rp.write_text(json.dumps(e.draft, indent=2))
+                    rejected = str(rp)
+                return fail(e.kind, e.reasons, rejected=rejected)
             except BudgetExceeded as e:
                 return fail("budget_exceeded", [e.reason], budget=e.snapshot)
             except (CallerError, BuilderError) as e:

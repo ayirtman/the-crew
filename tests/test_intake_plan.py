@@ -41,3 +41,22 @@ def test_plan_wraps_draft_with_parent_and_fixed_constraints():
     assert p.parent == "sha256:brief" and p.run_id == "r1"
     assert any("package.json" in c for c in p.constraints)
     assert meta.wall_ms >= 0
+
+
+def test_intake_retries_when_the_evaluator_rejects_the_draft():
+    from pipeline.llm import CallResult, SchemaInvalid
+    from pipeline.contracts import Usage
+    good = json.loads((FIX / "brief_good.json").read_text())
+    bad = dict(good, must_have_behaviors=["The count", "Show an error", "Disable the button"])
+
+    class Seq:
+        def __init__(self):
+            self.n = 0
+        def call(self, *, system_file, user, schema, stage):
+            self.n += 1
+            return CallResult(parsed=schema.model_validate(bad if self.n == 1 else good), usage=Usage(),
+                              cost_reported=0.0, num_turns=2, duration_ms=1, raw={})
+
+    s = Seq()
+    brief, meta = intake.produce(idea_text="idea", idea_sha="s", run_id="r1", idea_id="01", caller=s, cfg=CFG)
+    assert s.n == 2 and meta.attempts == 2 and brief.must_have_behaviors[0].startswith("Return")
