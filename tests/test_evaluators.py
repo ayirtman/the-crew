@@ -119,3 +119,58 @@ def test_brief_rejects_behaviors_that_start_with_an_article_or_subject():
     for bad in ("The count for a valid URL", "A list of words", "It shows the word", "Users can click", "There is a timer"):
         b = brief(must_have_behaviors=[bad, "Show an error", "Disable the button"])
         assert any("verb" in r for r in evaluators.evaluate_brief(b)), bad
+
+
+# ---------------------------------------------------------------- requirement coverage
+
+from pipeline.idea import ParsedIdea  # noqa: E402
+
+
+def _idea(musts=(), nevers=()):
+    return ParsedIdea(prose="p", musts=list(musts), nevers=list(nevers))
+
+
+def _req(text, kind, beh=(), ng=()):
+    return {"text": text, "kind": kind, "covered_by_behaviors": list(beh), "covered_by_non_goals": list(ng)}
+
+
+def test_brief_covering_all_musts_and_nevers_passes():
+    b = brief(requirements=[_req("Each session has a time limit.", "must", beh=[0]),
+                            _req("no rewards", "never", ng=[0])])
+    idea = _idea(musts=["each session has a time limit"], nevers=["No rewards"])
+    assert evaluators.evaluate_brief(b, idea) == []
+
+
+def test_dropped_must_is_rejected_with_its_text():
+    b = brief(requirements=[])
+    idea = _idea(musts=["each session has a time limit"])
+    reasons = evaluators.evaluate_brief(b, idea)
+    assert any("each session has a time limit" in r and "must" in r.lower() for r in reasons)
+
+
+def test_must_without_behavior_coverage_is_rejected():
+    b = brief(requirements=[_req("each session has a time limit", "must")])
+    reasons = evaluators.evaluate_brief(b, _idea(musts=["each session has a time limit"]))
+    assert any("not covered by any behavior" in r for r in reasons)
+
+
+def test_never_must_map_to_non_goals_not_behaviors():
+    b = brief(requirements=[_req("no rewards", "never", beh=[0])])
+    reasons = evaluators.evaluate_brief(b, _idea(nevers=["no rewards"]))
+    assert any("non_goal" in r for r in reasons)
+
+
+def test_requirement_indexes_out_of_range_rejected():
+    b = brief(requirements=[_req("x behavior thing", "prose", beh=[9])])
+    reasons = evaluators.evaluate_brief(b, _idea())
+    assert any("out of range" in r for r in reasons)
+
+
+def test_prose_requirement_needs_some_coverage():
+    b = brief(requirements=[_req("tracked accuracy", "prose")])
+    reasons = evaluators.evaluate_brief(b, _idea())
+    assert any("tracked accuracy" in r for r in reasons)
+
+
+def test_evaluate_brief_without_idea_defaults_to_empty_contract():
+    assert evaluators.evaluate_brief(brief()) == []

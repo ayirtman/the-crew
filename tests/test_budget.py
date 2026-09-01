@@ -7,7 +7,7 @@ from pipeline.contracts import Usage
 
 def test_config_loads_stage_caps():
     cfg = load_config("pipeline.toml")
-    assert cfg.stages["build"].max_turns == 40
+    assert cfg.stages["build"].max_turns == 50
     assert cfg.stages["verify"].per_command_seconds["next_build"] == 300
     assert cfg.run.max_cost_usd == 2.0
 

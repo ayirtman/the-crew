@@ -32,7 +32,7 @@ def test_brief_rejects_vague_word():
 def test_brief_rejects_too_few_behaviors():
     d = load("brief_good.json")
     d["must_have_behaviors"] = d["must_have_behaviors"][:2]
-    with pytest.raises(ValidationError, match="3 and 5"):
+    with pytest.raises(ValidationError, match="3 and 8"):
         BriefDraft.model_validate(d)
 
 
@@ -159,3 +159,17 @@ def test_manifest_totals_sum_stage_records():
     assert m.totals.cost_usd == pytest.approx(0.51)
     assert m.totals.wall_ms == 1000
     assert m.totals.input_tokens == 20
+
+
+def test_brief_requirements_field_validates():
+    b = BriefDraft.model_validate(load("brief_good.json"))
+    assert b.requirements[0].kind == "never" and b.requirements[1].covered_by_behaviors == [1]
+
+
+def test_brief_allows_up_to_eight_behaviors():
+    d = load("brief_good.json")
+    d["must_have_behaviors"] = [f"Return thing number {i}" for i in range(8)]
+    assert len(BriefDraft.model_validate(d).must_have_behaviors) == 8
+    d["must_have_behaviors"].append("Return thing number 8")
+    with pytest.raises(ValidationError, match="3 and 8"):
+        BriefDraft.model_validate(d)

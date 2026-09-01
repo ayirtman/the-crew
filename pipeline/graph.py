@@ -26,6 +26,7 @@ from pipeline.budget import BudgetExceeded, Ledger, canonical_model, cost_for
 from pipeline.config import Config
 from pipeline.contracts import (Brief, BuildResult, Plan, RunManifest, StageFailure, StageRecord,
                                 TestReport, Usage)
+from pipeline.idea import parse_idea
 from pipeline.llm import CallerError, SchemaInvalid, StructuredCaller
 from pipeline.stages import CallMeta, intake, plan as plan_stage, template
 from pipeline.stages.build import BuilderError
@@ -276,7 +277,8 @@ def _route(next_node: str):
 
 def build_graph(run: _Run, variant: Variant, *, yes: bool):
     g = StateGraph(PipelineState)
-    g.add_node("intake", run.stage("intake", run._intake, lambda b, s: evaluators.evaluate_brief(b)))
+    g.add_node("intake", run.stage("intake", run._intake,
+               lambda b, s: evaluators.evaluate_brief(b, parse_idea(Path(s["idea_path"]).read_text()))))
     if variant == "v1":
         g.add_node("plan", run.stage("plan", run._plan, run._eval_plan))
     g.add_node("build", run.stage("build", run._build, run._eval_build))

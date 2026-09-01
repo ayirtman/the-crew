@@ -7,6 +7,7 @@ from pipeline.budget import BudgetExceeded
 from pipeline.config import Config
 from pipeline.contracts import Brief, BriefDraft, BudgetSnapshot
 from pipeline import evaluators
+from pipeline.idea import parse_idea
 from pipeline.llm import StructuredCaller, call_with_retry
 from pipeline.stages import CallMeta
 

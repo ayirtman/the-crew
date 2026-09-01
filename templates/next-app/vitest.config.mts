@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: { alias: { "@": path.resolve(import.meta.dirname) } },
   test: {
     include: ["tests/**/*.test.{ts,tsx}"],
+    setupFiles: ["./vitest.setup.ts"],
     environment: "jsdom",
     globals: false,
   },

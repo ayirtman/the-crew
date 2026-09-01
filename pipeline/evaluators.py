@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 
 from pipeline.contracts import Brief, BuildResult, Plan, TestReport
+from pipeline.idea import ParsedIdea, normalize
 from pipeline.stages.template import LOCKED_FILES
 
 # The failure shape seen in practice is a behavior written as a noun phrase or a sentence about
@@ -17,8 +18,39 @@ _NOT_A_VERB = re.compile(r"^(the|a|an|it|its|there|this|that|these|those|user|us
                          r"parents|page|app|system|when|if|should|must|can|will)\b", re.I)
 
 
-def evaluate_brief(b: Brief) -> list[str]:
+def evaluate_brief(b: Brief, idea: ParsedIdea | None = None) -> list[str]:
     reasons: list[str] = []
+    idea = idea or ParsedIdea(prose="")
+
+    # The idea is the contract: every Must and Never line must survive into requirements,
+    # and every requirement must actually be covered. Dropping one is a rejectable offence.
+    by_norm = {normalize(r.text): r for r in b.requirements}
+    n_beh, n_ng = len(b.must_have_behaviors), len(b.non_goals)
+    for must in idea.musts:
+        r = by_norm.get(normalize(must))
+        if r is None or r.kind != "must":
+            reasons.append(f"must from the idea is missing from requirements: '{must}'")
+    for never in idea.nevers:
+        r = by_norm.get(normalize(never))
+        if r is None or r.kind != "never":
+            reasons.append(f"never from the idea is missing from requirements: '{never}'")
+    for r in b.requirements:
+        for i in r.covered_by_behaviors:
+            if not 0 <= i < n_beh:
+                reasons.append(f"requirement '{r.text}': behavior index {i} out of range 0..{n_beh - 1}")
+        for i in r.covered_by_non_goals:
+            if not 0 <= i < n_ng:
+                reasons.append(f"requirement '{r.text}': non_goal index {i} out of range 0..{n_ng - 1}")
+        if r.kind == "must" and not any(0 <= i < n_beh for i in r.covered_by_behaviors):
+            reasons.append(f"must requirement '{r.text}' is not covered by any behavior")
+        if r.kind == "never":
+            if not any(0 <= i < n_ng for i in r.covered_by_non_goals):
+                reasons.append(f"never requirement '{r.text}' must be covered by a non_goal")
+            if r.covered_by_behaviors:
+                reasons.append(f"never requirement '{r.text}' maps to behaviors; it belongs in non_goal coverage")
+        if r.kind == "prose" and not (r.covered_by_behaviors or r.covered_by_non_goals):
+            reasons.append(f"requirement '{r.text}' has no coverage at all")
+
     for i, beh in enumerate(b.must_have_behaviors):
         if _NOT_A_VERB.match(beh.strip()) or not beh.strip()[:1].isalpha():
             reasons.append(f"must_have_behaviors[{i}] does not start with a verb: '{beh}'")

@@ -12,7 +12,8 @@ Rules for every field:
 - single_feature: the one thing the page does, in one sentence.
 - api.path must start with /api/. Method GET or POST. For POST, list the input_fields. Always list output_fields.
 - ui_elements: two to six concrete elements (an input, a button, an image pair, a result line).
-- must_have_behaviors: three to five, each starting with a verb (Return, Show, Play, Disable, Reject...). Describe what the user sees and hears, not only what the API returns. Each one must be checkable by a unit test with no network. These become the tests.
+- must_have_behaviors: three to eight, each starting with a verb (Return, Show, Play, Disable, Reject...). Describe what the user sees and hears, not only what the API returns. Each one must be checkable by a unit test with no network. These become the tests.
 - non_goals: at least two things this app deliberately does not do.
+- requirements: the idea's own constraints, kept traceable. Copy every line of the idea's MUST list verbatim as {kind: "must"} and list the behavior indexes (0-based) that implement it; copy every NEVER line verbatim as {kind: "never"} with the non_goal indexes that state it. Also extract explicit constraints from the prose ("there should be X", "no Y") as {kind: "prose"} entries with their coverage. A must with no behavior, or a never with no non_goal, will be rejected. If the one-page shape truly cannot deliver a must, the Brief is still not allowed to drop it: implement the closest checkable version of it.
 
-Do not add features. Do not describe architecture. Do not mention frameworks. Output only the Brief.
+Do not add features beyond the idea. Do not describe architecture. Do not mention frameworks. Output only the Brief.

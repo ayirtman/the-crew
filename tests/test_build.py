@@ -62,7 +62,7 @@ def test_argv_confines_tools_and_never_bypasses_permissions(tmp_path):
     assert "--permission-mode" in argv and argv[argv.index("--permission-mode") + 1] == "acceptEdits"
     assert "bypassPermissions" not in argv and "--dangerously-skip-permissions" not in argv
     assert "--safe-mode" in argv and "--bare" not in argv
-    assert "--max-turns" in argv and argv[argv.index("--max-turns") + 1] == "40"
+    assert "--max-turns" in argv and argv[argv.index("--max-turns") + 1] == "50"
     allowed = argv[argv.index("--allowedTools") + 1]
     assert "Write" in allowed and "Bash(npx vitest run" in allowed and "Bash(npx tsc" in allowed
     assert "ANTHROPIC_API_KEY" not in c["env"] and "CLAUDECODE" not in c["env"]

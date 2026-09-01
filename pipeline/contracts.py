@@ -68,6 +68,14 @@ class ApiContract(BaseModel):
         return _count(v, "api.output_fields", 1, 20)
 
 
+class Requirement(BaseModel):
+    model_config = STRICT
+    text: str
+    kind: Literal["must", "never", "prose"]
+    covered_by_behaviors: list[int]
+    covered_by_non_goals: list[int]
+
+
 class BriefDraft(BaseModel):
     model_config = STRICT
     title: str
@@ -78,6 +86,7 @@ class BriefDraft(BaseModel):
     ui_elements: list[str]
     must_have_behaviors: list[str]
     non_goals: list[str]
+    requirements: list[Requirement] = []
 
     @field_validator("title")
     @classmethod
@@ -101,12 +110,12 @@ class BriefDraft(BaseModel):
     @field_validator("ui_elements")
     @classmethod
     def _ui(cls, v: list[str]) -> list[str]:
-        return _unique(_count(v, "ui_elements", 2, 6), "ui_elements")
+        return _unique(_count(v, "ui_elements", 2, 8), "ui_elements")
 
     @field_validator("must_have_behaviors")
     @classmethod
     def _behaviors(cls, v: list[str]) -> list[str]:
-        _count(v, "must_have_behaviors", 3, 5)
+        _count(v, "must_have_behaviors", 3, 8)
         for b in v:
             check_vague(b, "must_have_behaviors")
         return _unique(v, "must_have_behaviors")
@@ -175,7 +184,7 @@ class PlanDraft(BaseModel):
     @field_validator("files")
     @classmethod
     def _files(cls, v: list[PlannedFile]) -> list[PlannedFile]:
-        _count(v, "files", 3, 10)
+        _count(v, "files", 3, 12)
         _unique([f.path for f in v], "files")
         return v
 
@@ -186,7 +195,7 @@ class PlanDraft(BaseModel):
 
     @model_validator(mode="after")
     def _criteria(self) -> "PlanDraft":
-        _count(self.acceptance_criteria, "acceptance_criteria", 1, 5)
+        _count(self.acceptance_criteria, "acceptance_criteria", 1, 8)
         _unique([c.test_name for c in self.acceptance_criteria], "acceptance_criteria.test_name")
         _unique([c.id for c in self.acceptance_criteria], "acceptance_criteria.id")
         paths = {f.path for f in self.files}

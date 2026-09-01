@@ -9,7 +9,7 @@ from pathlib import Path
 
 LOCKED_FILES = frozenset({
     "package.json", "package-lock.json", "tsconfig.json", "next.config.ts",
-    "eslint.config.mjs", "vitest.config.mts",
+    "eslint.config.mjs", "vitest.config.mts", "vitest.setup.ts",
 })
 SKIP_DIRS = frozenset({"node_modules", ".next", ".git"})
 SKIP_FILES = frozenset({"tsconfig.tsbuildinfo", ".DS_Store"})

@@ -52,6 +52,7 @@ def test_locked_files_are_the_config_surface():
     assert "package.json" in template.LOCKED_FILES
     assert "vitest.config.mts" in template.LOCKED_FILES
     assert "next.config.ts" in template.LOCKED_FILES
+    assert "vitest.setup.ts" in template.LOCKED_FILES
 
 
 @pytest.mark.slow
