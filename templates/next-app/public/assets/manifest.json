@@ -1,0 +1,378 @@
+{
+  "languages": [
+    "en",
+    "de",
+    "tr",
+    "es",
+    "fr"
+  ],
+  "language_names": {
+    "en": "English",
+    "de": "Deutsch",
+    "tr": "Türkçe",
+    "es": "Español",
+    "fr": "Français"
+  },
+  "words": [
+    {
+      "id": "dog",
+      "image": "/assets/images/dog.svg",
+      "word": {
+        "en": "dog",
+        "de": "Hund",
+        "tr": "köpek",
+        "es": "perro",
+        "fr": "chien"
+      },
+      "audio": {
+        "en": "/assets/audio/en/dog.mp3",
+        "de": "/assets/audio/de/dog.mp3",
+        "tr": "/assets/audio/tr/dog.mp3",
+        "es": "/assets/audio/es/dog.mp3",
+        "fr": "/assets/audio/fr/dog.mp3"
+      }
+    },
+    {
+      "id": "cat",
+      "image": "/assets/images/cat.svg",
+      "word": {
+        "en": "cat",
+        "de": "Katze",
+        "tr": "kedi",
+        "es": "gato",
+        "fr": "chat"
+      },
+      "audio": {
+        "en": "/assets/audio/en/cat.mp3",
+        "de": "/assets/audio/de/cat.mp3",
+        "tr": "/assets/audio/tr/cat.mp3",
+        "es": "/assets/audio/es/cat.mp3",
+        "fr": "/assets/audio/fr/cat.mp3"
+      }
+    },
+    {
+      "id": "ball",
+      "image": "/assets/images/ball.svg",
+      "word": {
+        "en": "ball",
+        "de": "Ball",
+        "tr": "top",
+        "es": "pelota",
+        "fr": "ballon"
+      },
+      "audio": {
+        "en": "/assets/audio/en/ball.mp3",
+        "de": "/assets/audio/de/ball.mp3",
+        "tr": "/assets/audio/tr/ball.mp3",
+        "es": "/assets/audio/es/ball.mp3",
+        "fr": "/assets/audio/fr/ball.mp3"
+      }
+    },
+    {
+      "id": "car",
+      "image": "/assets/images/car.svg",
+      "word": {
+        "en": "car",
+        "de": "Auto",
+        "tr": "araba",
+        "es": "coche",
+        "fr": "voiture"
+      },
+      "audio": {
+        "en": "/assets/audio/en/car.mp3",
+        "de": "/assets/audio/de/car.mp3",
+        "tr": "/assets/audio/tr/car.mp3",
+        "es": "/assets/audio/es/car.mp3",
+        "fr": "/assets/audio/fr/car.mp3"
+      }
+    },
+    {
+      "id": "apple",
+      "image": "/assets/images/apple.svg",
+      "word": {
+        "en": "apple",
+        "de": "Apfel",
+        "tr": "elma",
+        "es": "manzana",
+        "fr": "pomme"
+      },
+      "audio": {
+        "en": "/assets/audio/en/apple.mp3",
+        "de": "/assets/audio/de/apple.mp3",
+        "tr": "/assets/audio/tr/apple.mp3",
+        "es": "/assets/audio/es/apple.mp3",
+        "fr": "/assets/audio/fr/apple.mp3"
+      }
+    },
+    {
+      "id": "banana",
+      "image": "/assets/images/banana.svg",
+      "word": {
+        "en": "banana",
+        "de": "Banane",
+        "tr": "muz",
+        "es": "plátano",
+        "fr": "banane"
+      },
+      "audio": {
+        "en": "/assets/audio/en/banana.mp3",
+        "de": "/assets/audio/de/banana.mp3",
+        "tr": "/assets/audio/tr/banana.mp3",
+        "es": "/assets/audio/es/banana.mp3",
+        "fr": "/assets/audio/fr/banana.mp3"
+      }
+    },
+    {
+      "id": "bird",
+      "image": "/assets/images/bird.svg",
+      "word": {
+        "en": "bird",
+        "de": "Vogel",
+        "tr": "kuş",
+        "es": "pájaro",
+        "fr": "oiseau"
+      },
+      "audio": {
+        "en": "/assets/audio/en/bird.mp3",
+        "de": "/assets/audio/de/bird.mp3",
+        "tr": "/assets/audio/tr/bird.mp3",
+        "es": "/assets/audio/es/bird.mp3",
+        "fr": "/assets/audio/fr/bird.mp3"
+      }
+    },
+    {
+      "id": "fish",
+      "image": "/assets/images/fish.svg",
+      "word": {
+        "en": "fish",
+        "de": "Fisch",
+        "tr": "balık",
+        "es": "pez",
+        "fr": "poisson"
+      },
+      "audio": {
+        "en": "/assets/audio/en/fish.mp3",
+        "de": "/assets/audio/de/fish.mp3",
+        "tr": "/assets/audio/tr/fish.mp3",
+        "es": "/assets/audio/es/fish.mp3",
+        "fr": "/assets/audio/fr/fish.mp3"
+      }
+    },
+    {
+      "id": "cow",
+      "image": "/assets/images/cow.svg",
+      "word": {
+        "en": "cow",
+        "de": "Kuh",
+        "tr": "inek",
+        "es": "vaca",
+        "fr": "vache"
+      },
+      "audio": {
+        "en": "/assets/audio/en/cow.mp3",
+        "de": "/assets/audio/de/cow.mp3",
+        "tr": "/assets/audio/tr/cow.mp3",
+        "es": "/assets/audio/es/cow.mp3",
+        "fr": "/assets/audio/fr/cow.mp3"
+      }
+    },
+    {
+      "id": "horse",
+      "image": "/assets/images/horse.svg",
+      "word": {
+        "en": "horse",
+        "de": "Pferd",
+        "tr": "at",
+        "es": "caballo",
+        "fr": "cheval"
+      },
+      "audio": {
+        "en": "/assets/audio/en/horse.mp3",
+        "de": "/assets/audio/de/horse.mp3",
+        "tr": "/assets/audio/tr/horse.mp3",
+        "es": "/assets/audio/es/horse.mp3",
+        "fr": "/assets/audio/fr/horse.mp3"
+      }
+    },
+    {
+      "id": "duck",
+      "image": "/assets/images/duck.svg",
+      "word": {
+        "en": "duck",
+        "de": "Ente",
+        "tr": "ördek",
+        "es": "pato",
+        "fr": "canard"
+      },
+      "audio": {
+        "en": "/assets/audio/en/duck.mp3",
+        "de": "/assets/audio/de/duck.mp3",
+        "tr": "/assets/audio/tr/duck.mp3",
+        "es": "/assets/audio/es/duck.mp3",
+        "fr": "/assets/audio/fr/duck.mp3"
+      }
+    },
+    {
+      "id": "bear",
+      "image": "/assets/images/bear.svg",
+      "word": {
+        "en": "bear",
+        "de": "Bär",
+        "tr": "ayı",
+        "es": "oso",
+        "fr": "ours"
+      },
+      "audio": {
+        "en": "/assets/audio/en/bear.mp3",
+        "de": "/assets/audio/de/bear.mp3",
+        "tr": "/assets/audio/tr/bear.mp3",
+        "es": "/assets/audio/es/bear.mp3",
+        "fr": "/assets/audio/fr/bear.mp3"
+      }
+    },
+    {
+      "id": "book",
+      "image": "/assets/images/book.svg",
+      "word": {
+        "en": "book",
+        "de": "Buch",
+        "tr": "kitap",
+        "es": "libro",
+        "fr": "livre"
+      },
+      "audio": {
+        "en": "/assets/audio/en/book.mp3",
+        "de": "/assets/audio/de/book.mp3",
+        "tr": "/assets/audio/tr/book.mp3",
+        "es": "/assets/audio/es/book.mp3",
+        "fr": "/assets/audio/fr/book.mp3"
+      }
+    },
+    {
+      "id": "cup",
+      "image": "/assets/images/cup.svg",
+      "word": {
+        "en": "cup",
+        "de": "Tasse",
+        "tr": "fincan",
+        "es": "taza",
+        "fr": "tasse"
+      },
+      "audio": {
+        "en": "/assets/audio/en/cup.mp3",
+        "de": "/assets/audio/de/cup.mp3",
+        "tr": "/assets/audio/tr/cup.mp3",
+        "es": "/assets/audio/es/cup.mp3",
+        "fr": "/assets/audio/fr/cup.mp3"
+      }
+    },
+    {
+      "id": "shoe",
+      "image": "/assets/images/shoe.svg",
+      "word": {
+        "en": "shoe",
+        "de": "Schuh",
+        "tr": "ayakkabı",
+        "es": "zapato",
+        "fr": "chaussure"
+      },
+      "audio": {
+        "en": "/assets/audio/en/shoe.mp3",
+        "de": "/assets/audio/de/shoe.mp3",
+        "tr": "/assets/audio/tr/shoe.mp3",
+        "es": "/assets/audio/es/shoe.mp3",
+        "fr": "/assets/audio/fr/shoe.mp3"
+      }
+    },
+    {
+      "id": "flower",
+      "image": "/assets/images/flower.svg",
+      "word": {
+        "en": "flower",
+        "de": "Blume",
+        "tr": "çiçek",
+        "es": "flor",
+        "fr": "fleur"
+      },
+      "audio": {
+        "en": "/assets/audio/en/flower.mp3",
+        "de": "/assets/audio/de/flower.mp3",
+        "tr": "/assets/audio/tr/flower.mp3",
+        "es": "/assets/audio/es/flower.mp3",
+        "fr": "/assets/audio/fr/flower.mp3"
+      }
+    },
+    {
+      "id": "tree",
+      "image": "/assets/images/tree.svg",
+      "word": {
+        "en": "tree",
+        "de": "Baum",
+        "tr": "ağaç",
+        "es": "árbol",
+        "fr": "arbre"
+      },
+      "audio": {
+        "en": "/assets/audio/en/tree.mp3",
+        "de": "/assets/audio/de/tree.mp3",
+        "tr": "/assets/audio/tr/tree.mp3",
+        "es": "/assets/audio/es/tree.mp3",
+        "fr": "/assets/audio/fr/tree.mp3"
+      }
+    },
+    {
+      "id": "sun",
+      "image": "/assets/images/sun.svg",
+      "word": {
+        "en": "sun",
+        "de": "Sonne",
+        "tr": "güneş",
+        "es": "sol",
+        "fr": "soleil"
+      },
+      "audio": {
+        "en": "/assets/audio/en/sun.mp3",
+        "de": "/assets/audio/de/sun.mp3",
+        "tr": "/assets/audio/tr/sun.mp3",
+        "es": "/assets/audio/es/sun.mp3",
+        "fr": "/assets/audio/fr/sun.mp3"
+      }
+    },
+    {
+      "id": "moon",
+      "image": "/assets/images/moon.svg",
+      "word": {
+        "en": "moon",
+        "de": "Mond",
+        "tr": "ay",
+        "es": "luna",
+        "fr": "lune"
+      },
+      "audio": {
+        "en": "/assets/audio/en/moon.mp3",
+        "de": "/assets/audio/de/moon.mp3",
+        "tr": "/assets/audio/tr/moon.mp3",
+        "es": "/assets/audio/es/moon.mp3",
+        "fr": "/assets/audio/fr/moon.mp3"
+      }
+    },
+    {
+      "id": "star",
+      "image": "/assets/images/star.svg",
+      "word": {
+        "en": "star",
+        "de": "Stern",
+        "tr": "yıldız",
+        "es": "estrella",
+        "fr": "étoile"
+      },
+      "audio": {
+        "en": "/assets/audio/en/star.mp3",
+        "de": "/assets/audio/de/star.mp3",
+        "tr": "/assets/audio/tr/star.mp3",
+        "es": "/assets/audio/es/star.mp3",
+        "fr": "/assets/audio/fr/star.mp3"
+      }
+    }
+  ]
+}

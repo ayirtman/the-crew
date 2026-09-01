@@ -315,6 +315,8 @@ class TestReport(BaseModel):
     eslint_warnings: int
     min_tests_required: int
     criteria_coverage: list[CriterionCoverage]
+    asset_refs_total: int = 0
+    asset_refs_missing: list[str] = []
     verify_pass: bool = False
 
     @field_validator("commands")
@@ -330,6 +332,7 @@ class TestReport(BaseModel):
             all(c.passed for c in self.commands)
             and self.tests_total >= self.min_tests_required
             and all(c.found and c.status == "passed" for c in self.criteria_coverage)
+            and not self.asset_refs_missing
         )
         object.__setattr__(self, "verify_pass", ok)
         return self

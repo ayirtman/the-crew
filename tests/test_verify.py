@@ -55,8 +55,8 @@ class FakeRunner:
         return subprocess.CompletedProcess(argv, rc, "out", "err")
 
 
-def _produce(tmp_path, **kw):
-    args = dict(app_dir=tmp_path / "app", run_dir=tmp_path / "run", brief=_brief(), plan=None,
+def _produce(tmp_path, app_dir=None, **kw):
+    args = dict(app_dir=app_dir or tmp_path / "app", run_dir=tmp_path / "run", brief=_brief(), plan=None,
                 build_sha="sha256:build", cfg=CFG, runner=FakeRunner())
     args.update(kw)
     return verify.produce(**args)
@@ -117,3 +117,51 @@ def test_timeout_marks_command_timed_out_and_continues(tmp_path):
 
 def test_min_tests_required_comes_from_brief(tmp_path):
     assert _produce(tmp_path).min_tests_required == 3
+
+
+# ---------------------------------------------------------------- asset references
+
+
+def _app_with_assets(tmp_path, refs, files):
+    app = tmp_path / "app"
+    (app / "app").mkdir(parents=True)
+    (app / "lib").mkdir()
+    (app / "app" / "page.tsx").write_text("const urls = [" + ", ".join(f'"{r}"' for r in refs) + "];")
+    for f in files:
+        p = app / "public" / f.lstrip("/")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x")
+    return app
+
+
+def test_asset_refs_found_in_source_and_checked_against_public(tmp_path):
+    app = _app_with_assets(tmp_path, ["/assets/images/dog.svg", "/assets/audio/en/dog.mp3"],
+                           ["/assets/images/dog.svg"])
+    rep = _produce(tmp_path, app_dir=app)
+    assert rep.asset_refs_total == 2
+    assert rep.asset_refs_missing == ["/assets/audio/en/dog.mp3"]
+    assert rep.verify_pass is False
+
+
+def test_all_asset_refs_resolving_passes(tmp_path):
+    app = _app_with_assets(tmp_path, ["/assets/images/dog.svg"], ["/assets/images/dog.svg"])
+    ok = json.loads(json.dumps(VITEST_JSON))
+    ok.update(numFailedTests=0, numPassedTests=3)
+    ok["testResults"][0]["assertionResults"][2]["status"] = "passed"
+    rep = _produce(tmp_path, app_dir=app, runner=FakeRunner(vitest=ok, eslint=[]))
+    assert rep.asset_refs_total == 1 and rep.asset_refs_missing == []
+    assert rep.verify_pass is True
+
+
+def test_no_asset_refs_is_fine(tmp_path):
+    rep = _produce(tmp_path)
+    assert rep.asset_refs_total == 0 and rep.asset_refs_missing == []
+
+
+def test_duplicate_refs_counted_once_and_node_modules_ignored(tmp_path):
+    app = _app_with_assets(tmp_path, ["/assets/x.svg", "/assets/x.svg"], [])
+    nm = app / "node_modules" / "pkg"
+    nm.mkdir(parents=True)
+    (nm / "junk.js").write_text('"/assets/ghost.mp3"')
+    rep = _produce(tmp_path, app_dir=app)
+    assert rep.asset_refs_total == 1 and rep.asset_refs_missing == ["/assets/x.svg"]

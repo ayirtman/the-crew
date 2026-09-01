@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -15,6 +16,10 @@ from typing import Callable
 from pipeline.config import Config
 from pipeline.contracts import (Brief, CommandResult, CriterionCoverage, Plan, TestCaseResult,
                                 TestReport)
+from pipeline.stages.template import SKIP_DIRS
+
+ASSET_REF = re.compile(r"/assets/[A-Za-z0-9_\-./]+")
+SOURCE_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".css", ".json")
 
 Runner = Callable[..., subprocess.CompletedProcess]
 ORDER = ("vitest", "eslint", "next_build", "tsc")
@@ -93,6 +98,22 @@ def _parse_eslint(path: Path) -> tuple[int, int]:
             sum(int(f.get("warningCount") or 0) for f in data))
 
 
+def check_asset_refs(app_dir: Path) -> tuple[int, list[str]]:
+    """Every /assets/... path mentioned in source must exist under public/. Non-model, cheap."""
+    app_dir = Path(app_dir)
+    refs: set[str] = set()
+    for dirpath, dirnames, filenames in os.walk(app_dir):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and d != "public"]
+        for fn in filenames:
+            if fn.endswith(SOURCE_SUFFIXES):
+                try:
+                    refs.update(ASSET_REF.findall((Path(dirpath) / fn).read_text(errors="ignore")))
+                except OSError:
+                    continue
+    missing = sorted(r for r in refs if not (app_dir / "public" / r.lstrip("/")).exists())
+    return len(refs), missing
+
+
 def produce(*, app_dir: Path, run_dir: Path, brief: Brief, plan: Plan | None, build_sha: str,
             cfg: Config, runner: Runner = subprocess.run) -> TestReport:
     stage = cfg.stages["verify"]
@@ -123,8 +144,11 @@ def produce(*, app_dir: Path, run_dir: Path, brief: Brief, plan: Plan | None, bu
             coverage.append(CriterionCoverage(criterion_id=c.id, test_name=c.test_name,
                                               found=st is not None, status=st))
 
+    refs_total, refs_missing = check_asset_refs(app_dir)
+
     return TestReport(
         run_id=brief.run_id, parent=build_sha, commands=commands, tests=tests,
         tests_passed=passed, tests_total=total, eslint_errors=errors, eslint_warnings=warnings,
         min_tests_required=len(brief.must_have_behaviors), criteria_coverage=coverage,
+        asset_refs_total=refs_total, asset_refs_missing=refs_missing,
     )
