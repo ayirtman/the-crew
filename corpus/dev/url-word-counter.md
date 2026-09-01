@@ -1,0 +1,1 @@
+A page where I paste a URL and it tells me how many words are on that page. I keep checking how long competitor articles are by copying them into a doc and hitting word count, which is annoying. Just the number, maybe the page title next to it.

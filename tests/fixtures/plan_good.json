@@ -1,0 +1,14 @@
+{
+  "files": [
+    {"path": "app/page.tsx", "purpose": "form with url input and result line"},
+    {"path": "app/api/count/route.ts", "purpose": "POST handler that fetches the url and counts words"},
+    {"path": "lib/count.ts", "purpose": "pure word counting over html text"},
+    {"path": "tests/count.test.ts", "purpose": "tests for the api and counting"}
+  ],
+  "acceptance_criteria": [
+    {"id": "AC1", "behavior_index": 0, "statement": "POST /api/count with a valid url returns word_count", "test_file": "tests/count.test.ts", "test_name": "returns word count for a valid url"},
+    {"id": "AC2", "behavior_index": 1, "statement": "POST /api/count with an invalid url returns 400 and an error", "test_file": "tests/count.test.ts", "test_name": "returns error for an invalid url"},
+    {"id": "AC3", "behavior_index": 2, "statement": "the button is disabled while the request is pending", "test_file": "tests/count.test.ts", "test_name": "disables the button while a request is in flight"}
+  ],
+  "build_steps": ["write lib/count.ts", "write the api route", "write the page", "write the tests and run vitest"]
+}

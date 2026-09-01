@@ -1,0 +1,42 @@
+[stages.intake]
+model = "haiku"
+auth = "subscription"
+max_turns = 2
+max_output_tokens = 1500
+max_input_chars = 24000
+max_seconds = 90
+
+[stages.plan]
+model = "haiku"
+auth = "subscription"
+max_turns = 2
+max_output_tokens = 2500
+max_input_chars = 30000
+max_seconds = 120
+
+[stages.build]
+model = "haiku"
+max_turns = 30
+max_seconds = 900
+max_total_tokens = 600000
+max_cost_usd = 1.50
+auth = "subscription"
+
+[stages.verify]
+max_seconds = 600
+
+[stages.verify.per_command_seconds]
+tsc = 120
+eslint = 120
+vitest = 180
+next_build = 300
+
+[run]
+max_cost_usd = 2.00
+max_seconds = 1800
+
+[pricing."claude-haiku-4-5-20251001"]
+input = 1.00
+output = 5.00
+cache_write = 1.25
+cache_read = 0.10

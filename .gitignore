@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+runs/
+apps/
+templates/next-app/node_modules/
+templates/next-app/.next/
+templates/next-app/next-env.d.ts
+.DS_Store
+templates/next-app/tsconfig.tsbuildinfo

@@ -1,0 +1,14 @@
+{
+  "title": "URL Word Counter",
+  "problem": "People want to know how much text is on a web page without copying it into a document.",
+  "target_user": "Writers checking competitor article length",
+  "single_feature": "Paste a URL, get the word count of its visible text",
+  "api": {"path": "/api/count", "method": "POST", "input_fields": ["url"], "output_fields": ["word_count", "title"]},
+  "ui_elements": ["url text input", "count button", "result line"],
+  "must_have_behaviors": [
+    "Return the word count for a valid URL",
+    "Show an error message for an invalid URL",
+    "Disable the button while a request is in flight"
+  ],
+  "non_goals": ["No history of past URLs", "No PDF support"]
+}
