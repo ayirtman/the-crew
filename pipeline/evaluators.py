@@ -46,7 +46,8 @@ def evaluate_plan(p: Plan, b: Brief) -> list[str]:
 
 def evaluate_build(r: BuildResult, p: Plan | None) -> list[str]:
     reasons: list[str] = []
-    if r.is_error or r.subtype != "success":
+    # Running out of turns is a spending stop, not a verdict: Verify judges what got written.
+    if r.subtype not in ("success", "error_max_turns"):
         reasons.append(f"builder returned {r.subtype}")
     if not r.files_written:
         reasons.append("no files written")

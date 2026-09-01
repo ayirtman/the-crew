@@ -18,7 +18,7 @@ max_seconds = 120
 
 [stages.build]
 model = "haiku"
-max_turns = 30
+max_turns = 40
 max_seconds = 900
 max_total_tokens = 600000
 max_cost_usd = 1.50

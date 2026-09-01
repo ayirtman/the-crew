@@ -81,9 +81,19 @@ def test_build_rejects_when_nothing_written():
     assert any("no files" in x for x in evaluators.evaluate_build(_build([]), None))
 
 
-def test_build_rejects_error_result():
+def test_build_that_ran_out_of_turns_but_wrote_files_goes_to_verify():
     r = _build(["app/page.tsx"], is_error=True, subtype="error_max_turns")
-    assert any("error_max_turns" in x for x in evaluators.evaluate_build(r, None))
+    assert evaluators.evaluate_build(r, None) == []
+
+
+def test_build_that_ran_out_of_turns_and_wrote_nothing_is_rejected():
+    r = _build([], is_error=True, subtype="error_max_turns")
+    assert any("no files" in x for x in evaluators.evaluate_build(r, None))
+
+
+def test_build_rejects_other_error_results():
+    r = _build(["app/page.tsx"], is_error=True, subtype="error_during_execution")
+    assert any("error_during_execution" in x for x in evaluators.evaluate_build(r, None))
 
 
 def test_build_with_plan_requires_planned_test_files_to_exist():

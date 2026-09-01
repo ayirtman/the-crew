@@ -36,6 +36,7 @@ def test_tree_hashes_lists_files_relative_and_skips_node_modules(tmp_path):
     (tmp_path / "node_modules" / "y.js").write_text("b")
     (tmp_path / ".next").mkdir()
     (tmp_path / ".next" / "z").write_text("c")
+    (tmp_path / "tsconfig.tsbuildinfo").write_text("d")
     h = template.tree_hashes(tmp_path)
     assert set(h) == {"app/x.ts"}
     assert h["app/x.ts"] == hashlib.sha256(b"a").hexdigest()

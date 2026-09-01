@@ -12,6 +12,7 @@ LOCKED_FILES = frozenset({
     "eslint.config.mjs", "vitest.config.mts",
 })
 SKIP_DIRS = frozenset({"node_modules", ".next", ".git"})
+SKIP_FILES = frozenset({"tsconfig.tsbuildinfo", ".DS_Store"})
 
 
 def materialize(template_dir: Path, apps_dir: Path, run_id: str) -> Path:
@@ -40,6 +41,8 @@ def tree_hashes(root: Path) -> dict[str, str]:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for fn in filenames:
+            if fn in SKIP_FILES:
+                continue
             p = Path(dirpath) / fn
             rel = p.relative_to(root).as_posix()
             out[rel] = hashlib.sha256(p.read_bytes()).hexdigest()
