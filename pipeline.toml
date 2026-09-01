@@ -5,7 +5,7 @@ max_turns = 2
 max_attempts = 2
 max_output_tokens = 1500
 max_input_chars = 24000
-max_seconds = 90
+max_seconds = 180
 
 [stages.plan]
 model = "haiku"
@@ -14,7 +14,7 @@ max_turns = 2
 max_attempts = 2
 max_output_tokens = 2500
 max_input_chars = 30000
-max_seconds = 120
+max_seconds = 180
 
 [stages.build]
 model = "haiku"
