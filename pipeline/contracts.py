@@ -452,6 +452,30 @@ class BuildResult(BaseModel):
         )
 
 
+# ---------------------------------------------------------------- Split build
+
+Role = Literal["backend", "frontend"]
+
+
+class SplitBuildResult(BaseModel):
+    model_config = STRICT
+    schema_version: Literal["1"] = "1"
+    stage: Literal["build"] = "build"
+    run_id: str
+    parent: str
+    app_dir: str
+    parts: list[BuildResult]
+    roles: list[Role]
+    files_written: list[str]
+    overlap: list[str]
+
+    @model_validator(mode="after")
+    def _two(self) -> "SplitBuildResult":
+        if len(self.parts) != 2 or self.roles != ["backend", "frontend"]:
+            raise ValueError("parts: exactly two, roles [backend, frontend]")
+        return self
+
+
 # ---------------------------------------------------------------- Verify
 
 CommandName = Literal["tsc", "eslint", "vitest", "next_build"]

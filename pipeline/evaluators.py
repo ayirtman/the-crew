@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 from pipeline.config import EvidenceRules, PanelRules
 from pipeline.contracts import (Brief, BuildResult, DesignSpec, EvidencePack, Plan, ReactionReport,
-                                TestReport)
+                                SplitBuildResult, TestReport)
 from pipeline.idea import ParsedIdea, normalize
 from pipeline.stages.template import LOCKED_FILES
 
@@ -161,6 +161,31 @@ def evaluate_design(d: DesignSpec, b: Brief, components: list[str]) -> list[str]
     for i in range(n):
         if i not in mapped:
             reasons.append(f"behavior {i} is mapped to no screen: '{b.must_have_behaviors[i]}'")
+    return reasons
+
+
+def evaluate_split_build(r: SplitBuildResult, p: Plan | None) -> list[str]:
+    from pipeline.stages.build_split import in_scope
+
+    reasons: list[str] = []
+    for f in r.overlap:
+        reasons.append(f"file written outside a single owner's scope: {f}")
+    for part, role in zip(r.parts, r.roles):
+        for f in part.files_written:
+            if not in_scope(f, role):
+                reasons.append(f"{role} wrote out of scope: {f}")
+        if part.subtype not in ("success", "error_max_turns"):
+            reasons.append(f"{role} builder returned {part.subtype}")
+    if not r.files_written:
+        reasons.append("no files written")
+    for f in r.files_written:
+        if f in LOCKED_FILES:
+            reasons.append(f"locked file edited: {f}")
+    if p is not None:
+        written = set(r.files_written)
+        for tf in sorted({c.test_file for c in p.acceptance_criteria}):
+            if tf not in written:
+                reasons.append(f"planned test file not written: {tf}")
     return reasons
 
 

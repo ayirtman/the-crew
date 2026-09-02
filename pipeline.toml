@@ -59,6 +59,14 @@ max_seconds = 600
 max_total_tokens = 400000
 max_cost_usd = 0.75
 
+[stages.build_split]
+model = "haiku"
+auth = "subscription"
+max_turns = 40
+max_seconds = 600
+max_total_tokens = 450000
+max_cost_usd = 0.90
+
 [stages.verify]
 max_seconds = 600
 

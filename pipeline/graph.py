@@ -37,6 +37,7 @@ log = logging.getLogger("pipeline")
 
 Variant = str
 # stage name -> artifact name (file stem) and state key prefix
+ARTIFACT_SPLIT = True
 ARTIFACT = {"intake": "brief", "evidence": "evidence", "panel": "panel", "plan": "plan",
             "design": "design", "build": "build", "build_split": "build", "repair": "repair",
             "verify": "verify", "verify2": "verify"}
@@ -275,6 +276,21 @@ class _Run:
             caller=self.deps.caller, cfg=self.deps.cfg)
         return spec, meta, []
 
+    def _build_split(self, state: PipelineState):
+        from pipeline.stages import build_split as split_stage
+
+        brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
+        p = artifacts.load(Path(state["plan_path"]), Plan, expected_sha=state["plan_sha"]) \
+            if state.get("plan_path") else None
+        d = artifacts.load(Path(state["design_path"]), DesignSpec, expected_sha=state["design_sha"]) \
+            if state.get("design_path") else None
+        parent = state.get("design_sha") or state.get("plan_sha") or state["brief_sha"]
+        app_dir = template.materialize(self.deps.template_dir, self.deps.apps_dir, self.run_id)
+        result, meta = split_stage.produce(
+            app_dir=app_dir, run_dir=self.run_dir, brief=brief, plan=p, design=d, parent_sha=parent,
+            cfg=self.deps.cfg, artifact_prefix=f"{self.seq['build_split']:02d}-build")
+        return result, meta, []
+
     def _build(self, state: PipelineState):
         brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
         p = None
@@ -294,10 +310,13 @@ class _Run:
         return result, meta, []
 
     def _verify_from(self, state: PipelineState, build_key: str):
+        from pipeline.contracts import SplitBuildResult
+
         brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
         p = artifacts.load(Path(state["plan_path"]), Plan, expected_sha=state["plan_sha"]) \
             if state.get("plan_path") else None
-        build = artifacts.load(Path(state[f"{build_key}_path"]), BuildResult,
+        model = SplitBuildResult if "build_split" in self.nodes and build_key == "build" else BuildResult
+        build = artifacts.load(Path(state[f"{build_key}_path"]), model,
                                expected_sha=state[f"{build_key}_sha"])
         t0 = time.monotonic()
         report = self.deps.verify(app_dir=Path(build.app_dir), run_dir=self.run_dir, brief=brief, plan=p,
@@ -312,8 +331,14 @@ class _Run:
         return self._verify_from(state, "repair")
 
     def _repair(self, state: PipelineState):
+        from pipeline.contracts import SplitBuildResult
+
         report = artifacts.load(Path(state["report_path"]), TestReport, expected_sha=state["report_sha"])
-        build = artifacts.load(Path(state["build_path"]), BuildResult, expected_sha=state["build_sha"])
+        model = SplitBuildResult if "build_split" in self.nodes else BuildResult
+        loaded = artifacts.load(Path(state["build_path"]), model, expected_sha=state["build_sha"])
+        build = loaded.parts[0].model_copy(update={
+            "app_dir": loaded.app_dir, "files_written": loaded.files_written}) \
+            if isinstance(loaded, SplitBuildResult) else loaded
         result, meta = self.deps.repair(
             app_dir=Path(build.app_dir), run_dir=self.run_dir, report=report, build_result=build,
             parent_sha=state["report_sha"], cfg=self.deps.cfg,
@@ -327,6 +352,10 @@ class _Run:
     def _eval_build(self, r: BuildResult, state: PipelineState) -> list[str]:
         p = artifacts.load(Path(state["plan_path"]), Plan) if state.get("plan_path") else None
         return evaluators.evaluate_build(r, p)
+
+    def _eval_split(self, r, state: PipelineState) -> list[str]:
+        p = artifacts.load(Path(state["plan_path"]), Plan) if state.get("plan_path") else None
+        return evaluators.evaluate_split_build(r, p)
 
     # ---- terminal nodes ---------------------------------------------------------------------
 
@@ -371,8 +400,8 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
     nodes = run.nodes
     producers = {
         "intake": run._intake, "evidence": run._evidence, "panel": run._panel, "plan": run._plan,
-        "design": run._design, "build": run._build, "verify": run._verify, "verify2": run._verify2,
-        "repair": run._repair,
+        "design": run._design, "build": run._build, "build_split": run._build_split,
+        "verify": run._verify, "verify2": run._verify2, "repair": run._repair,
     }
     evals: dict[str, Callable] = {
         "intake": lambda b, s: evaluators.evaluate_brief(b, parse_idea(Path(s["idea_path"]).read_text())),
@@ -387,6 +416,7 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
         "design": lambda d, s: evaluators.evaluate_design(
             d, artifacts.load(Path(s["brief_path"]), Brief),
             design_stage.load_components(run.deps.template_dir)),
+        "build_split": run._eval_split,
     }
     g = StateGraph(PipelineState)
     for name in nodes:
