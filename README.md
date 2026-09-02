@@ -24,6 +24,7 @@ Claude Code must be logged in (subscription). `ANTHROPIC_API_KEY` is stripped fr
     .venv/bin/python -m pipeline run --graph v1 --idea 01            # pauses before Build
     .venv/bin/python -m pipeline run --graph v0 --idea 01 --yes      # no pause
     .venv/bin/python -m pipeline run --graph v1 --idea corpus/dev/url-word-counter.md --yes   # a dev idea
+    .venv/bin/python -m pipeline run --graph crew --idea corpus/dev/url-word-counter.md --yes   # the whole diagram; still pauses at publish
     .venv/bin/python -m pipeline run --graph v1 --idea 01 --yes --mock   # zero tokens, fixture app
     .venv/bin/python -m pipeline eval --graph v0 --yes               # whole corpus, appends eval/results/v0.jsonl
     .venv/bin/python -m pipeline report                              # the table, joined with eval/scores.csv

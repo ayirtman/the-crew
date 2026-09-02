@@ -13,7 +13,7 @@ from typing import Callable
 
 from pipeline.budget import BudgetExceeded
 from pipeline.config import Config
-from pipeline.contracts import BudgetSnapshot, BuildResult, TestReport
+from pipeline.contracts import BudgetSnapshot, BuildResult, ReviewReport, SecurityReport, TestReport
 from pipeline.llm import STRIP_ENV
 from pipeline.stages import CallMeta
 from pipeline.stages.build import ALLOWED_TOOLS
@@ -23,9 +23,16 @@ PROMPTS = Path(__file__).resolve().parents[1] / "prompts"
 Runner = Callable[..., subprocess.CompletedProcess]
 
 
-def failure_summary(report: TestReport) -> str:
-    """Deterministic digest of everything the oracle rejected. No model opinion enters."""
+def failure_summary(report: TestReport, review: ReviewReport | None = None,
+                    security: SecurityReport | None = None) -> str:
+    """Deterministic digest of everything the oracles rejected. No model opinion enters."""
     parts: list[str] = []
+    if review is not None and not review.review_pass:
+        parts.append("CODE REVIEW FINDINGS:\n" + "\n".join(
+            f"- [{f.kind}] {f.path}: {f.detail}" for f in review.findings))
+    if security is not None and not security.security_pass:
+        parts.append("SECURITY FINDINGS:\n" + "\n".join(
+            f"- [{f.kind}] {f.path}: {f.detail}" for f in security.findings))
     for c in report.commands:
         if not c.passed:
             tail = (c.stderr_tail or c.stdout_tail).strip()
@@ -45,9 +52,10 @@ def failure_summary(report: TestReport) -> str:
     return "\n\n".join(parts)
 
 
-def task_prompt(report: TestReport, result: BuildResult) -> str:
+def task_prompt(report: TestReport, result: BuildResult, review: ReviewReport | None = None,
+                security: SecurityReport | None = None) -> str:
     tpl = (PROMPTS / "repair_task.md").read_text()
-    return (tpl.replace("{{FAILURES}}", failure_summary(report))
+    return (tpl.replace("{{FAILURES}}", failure_summary(report, review, security))
                .replace("{{FILES}}", "\n".join(f"- {f}" for f in result.files_written)))
 
 
@@ -73,12 +81,13 @@ def argv(prompt: str, cfg: Config) -> list[str]:
 
 def produce(*, app_dir: Path, run_dir: Path, report: TestReport, build_result: BuildResult,
             parent_sha: str, cfg: Config, runner: Runner = subprocess.run,
-            artifact_prefix: str = "05-repair") -> tuple[BuildResult, CallMeta]:
+            artifact_prefix: str = "05-repair", review: ReviewReport | None = None,
+            security: SecurityReport | None = None) -> tuple[BuildResult, CallMeta]:
     stage = cfg.stages["repair"]
     app_dir, run_dir = Path(app_dir), Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     before = tree_hashes(app_dir)
-    prompt = task_prompt(report, build_result)
+    prompt = task_prompt(report, build_result, review, security)
     (run_dir / f"{artifact_prefix}.prompt.md").write_text(prompt)
     t0 = time.monotonic()
     try:

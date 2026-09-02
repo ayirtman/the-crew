@@ -83,16 +83,35 @@ def run_one(*, root: Path, graph: str, idea_id: str, yes: bool, mock: bool, out=
     idea_id, path = resolve_idea(root, idea_id)
     run_id = make_run_id(graph, idea_id)
     h = G.start(deps=deps, variant=graph, idea_path=path, idea_id=idea_id, run_id=run_id, yes=yes)
-    if h.outcome is None:
-        print(h.summary(), file=out)
-        try:
-            answer = input("Spend money on Build? [y/N] ").strip().lower()
-        except EOFError:
-            answer = "n"
-        outcome = h.resume() if answer == "y" else h.abort()
-    else:
-        outcome = h.outcome
-    return outcome
+    while h.outcome is None:
+        nxt = h.next
+        if not nxt:
+            h._finish()
+            break
+        node = nxt[0]
+        if node in ("build", "build_split"):
+            print(h.summary(), file=out)
+            try:
+                answer = input("Spend money on Build? [y/N] ").strip().lower()
+            except EOFError:
+                answer = "n"
+            if answer != "y":
+                return h.abort()
+            h.resume()
+        elif node == "ship":
+            app = Path(root) / "apps" / run_id
+            print(f"All gates green. App dir: {app}", file=out)
+            print(f"Try it first:  cd {app} && npx next start -p 3001", file=out)
+            try:
+                answer = input("Publish to Vercel production? [y/N] ").strip().lower()
+            except EOFError:
+                answer = "n"
+            if answer != "y":
+                return h.decline_ship()
+            h.resume()
+        else:
+            h.resume()
+    return h.outcome
 
 
 def verify_only(*, root: Path, run_id: str) -> int:

@@ -21,3 +21,8 @@ Written before the first measured run. Frozen at tag `eval-frozen`. The run eith
 There is always exactly one champion variant and at most one challenger. A challenger differs from the champion by exactly one variable (one added or changed stage), never two. The challenger runs the full frozen corpus and is promoted only if it clears the three-part rule above against the current champion. A `killed` run counts as a verify non-pass and scores 0 human points; the panel's kills are part of the challenger's record, not excused from it. On promotion the challenger becomes champion and the ladder moves one rung. On failure the variable is removed and the result recorded here; the champion stands.
 
 Planned rung order: v1 -> v1r (repair) -> v2e (evidence) -> v2p (panel) -> v2d (design) -> v2x (split build). The ladder is a process, not code; nothing enforces it except this file and the recorded results.
+
+
+## The crew
+
+The `crew` variant is the acceptance shape, not a ladder rung: all 14 stations of the-crew.svg (three of them programs: review, verify, security), a publish interrupt, a live health check. It never runs in `eval/results/` and never competes on the ladder; the ladder stays one variable per rung. The crew is what the champion's stages graduate into.

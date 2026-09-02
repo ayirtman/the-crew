@@ -24,12 +24,16 @@ from pipeline import artifacts, evaluators
 from pipeline.artifacts import ArtifactError
 from pipeline.budget import BudgetExceeded, Ledger, canonical_model, cost_for
 from pipeline.config import Config
-from pipeline.contracts import (Brief, BuildResult, DesignSpec, EvidencePack, Plan, RunManifest,
-                                StageFailure, StageRecord, TestReport, Usage)
+from pipeline.contracts import (Brief, BuildResult, DesignSpec, EvidencePack, Plan, ReviewReport,
+                                RunManifest, SecurityReport, ShipRecord, StageFailure, StageRecord,
+                                TechSpec, TestReport, Usage, UXFlows)
 from pipeline.idea import parse_idea
 from pipeline.llm import CallerError, SchemaInvalid, StructuredCaller
-from pipeline.stages import (CallMeta, design as design_stage, evidence as evidence_stage, intake,
-                             panel as panel_stage, plan as plan_stage, template)
+from pipeline.stages import (CallMeta, analytics as analytics_stage, architect as architect_stage,
+                             design as design_stage, evidence as evidence_stage, intake,
+                             panel as panel_stage, plan as plan_stage, release as release_stage,
+                             review as review_stage, security as security_stage, template,
+                             ux as ux_stage)
 from pipeline.stages.build import BuilderError
 from pipeline.variants import VARIANTS, expand
 
@@ -40,10 +44,16 @@ Variant = str
 ARTIFACT_SPLIT = True
 ARTIFACT = {"intake": "brief", "evidence": "evidence", "panel": "panel", "plan": "plan",
             "design": "design", "build": "build", "build_split": "build", "repair": "repair",
-            "verify": "verify", "verify2": "verify"}
+            "verify": "verify", "verify2": "verify", "architect": "techspec", "ux": "ux",
+            "ui": "design", "review": "review", "review2": "review", "security": "security",
+            "security2": "security", "ship": "ship", "analytics": "analytics"}
 STATE_KEY = {"intake": "brief", "evidence": "evidence", "panel": "panel", "plan": "plan",
              "design": "design", "build": "build", "build_split": "build", "repair": "repair",
-             "verify": "report", "verify2": "report2"}
+             "verify": "report", "verify2": "report2", "architect": "techspec", "ux": "ux",
+             "ui": "design", "review": "review", "review2": "review2", "security": "security",
+             "security2": "security2", "ship": "ship", "analytics": "analytics"}
+# a second-pass or aliased node bills and budgets as its base stage
+BASE_STAGE = {"verify2": "verify", "review2": "review", "security2": "security", "ui": "design"}
 
 
 @dataclass
@@ -57,6 +67,10 @@ class Deps:
     runs_dir: Path
     repair: Callable[..., tuple[BuildResult, CallMeta]] | None = None
     fetch: Callable[[str], int] | None = None
+    build_split: Callable | None = None  # override for tests; None = the real parallel split stage
+    audit: Callable | None = None    # npm audit runner for the security stage (None = real)
+    deploy: Callable | None = None   # vercel runner for the ship stage (None = real)
+    probe: Callable | None = None    # url probe for the analytics stage (None = real)
 
 
 class PipelineState(TypedDict, total=False):
@@ -75,6 +89,25 @@ class PipelineState(TypedDict, total=False):
     plan_sha: str
     design_path: str
     design_sha: str
+    techspec_path: str
+    techspec_sha: str
+    ux_path: str
+    ux_sha: str
+    review_path: str
+    review_sha: str
+    review2_path: str
+    review2_sha: str
+    security_path: str
+    security_sha: str
+    security2_path: str
+    security2_sha: str
+    ship_path: str
+    ship_sha: str
+    analytics_path: str
+    analytics_sha: str
+    review_ok: bool
+    verify_ok: bool
+    security_ok: bool
     repair_path: str
     repair_sha: str
     report2_path: str
@@ -200,7 +233,7 @@ class _Run:
             path, sha = artifacts.write(self.run_dir, seq, ARTIFACT[name], artifact)
             cost = meta.cost_reported if meta.cost_reported else cost_for(meta.usage, meta.model, self.deps.cfg)
             # subscription stages report a notional cost and bill nothing; api_key stages bill what they report
-            base = "verify" if name == "verify2" else name
+            base = BASE_STAGE.get(name, name)
             stage_cfg = self.deps.cfg.stages.get(base)
             billed = cost if (stage_cfg and stage_cfg.auth == "api_key") else 0.0
             wall = meta.wall_ms or int((time.monotonic() - t0) * 1000)
@@ -231,6 +264,16 @@ class _Run:
             out: dict = {f"{key}_path": str(path), f"{key}_sha": sha, "stage_records": [rec]}
             if name in ("verify", "verify2"):
                 out["status"] = "success" if artifact.verify_pass else "verify_failed"
+                out["verify_ok"] = artifact.verify_pass
+            if name in ("review", "review2"):
+                out["review_ok"] = artifact.review_pass
+            if name in ("security", "security2"):
+                # the three red boxes speak as one: all pass or the run repairs / stays failed
+                ok = artifact.security_pass and state.get("review_ok", True) and state.get("verify_ok", True)
+                out["security_ok"] = artifact.security_pass
+                out["status"] = "success" if ok else "verify_failed"
+            if name == "ship":
+                out["status"] = "success"
             if name == "panel" and getattr(artifact, "kill", False):
                 out["status"] = "killed"
             return out
@@ -283,6 +326,7 @@ class _Run:
     def _build_split(self, state: PipelineState):
         from pipeline.stages import build_split as split_stage
 
+        producer = self.deps.build_split or split_stage.produce
         brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
         p = artifacts.load(Path(state["plan_path"]), Plan, expected_sha=state["plan_sha"]) \
             if state.get("plan_path") else None
@@ -290,7 +334,7 @@ class _Run:
             if state.get("design_path") else None
         parent = state.get("design_sha") or state.get("plan_sha") or state["brief_sha"]
         app_dir = template.materialize(self.deps.template_dir, self.deps.apps_dir, self.run_id)
-        result, meta = split_stage.produce(
+        result, meta = producer(
             app_dir=app_dir, run_dir=self.run_dir, brief=brief, plan=p, design=d, parent_sha=parent,
             cfg=self.deps.cfg, artifact_prefix=f"{self.seq['build_split']:02d}-build")
         return result, meta, []
@@ -343,10 +387,20 @@ class _Run:
         build = loaded.parts[0].model_copy(update={
             "app_dir": loaded.app_dir, "files_written": loaded.files_written}) \
             if isinstance(loaded, SplitBuildResult) else loaded
+        kw: dict = {}
+        if state.get("review_path"):
+            rv = artifacts.load(Path(state["review_path"]), ReviewReport, expected_sha=state["review_sha"])
+            if not rv.review_pass:
+                kw["review"] = rv
+        if state.get("security_path"):
+            sec = artifacts.load(Path(state["security_path"]), SecurityReport,
+                                 expected_sha=state["security_sha"])
+            if not sec.security_pass:
+                kw["security"] = sec
         result, meta = self.deps.repair(
             app_dir=Path(build.app_dir), run_dir=self.run_dir, report=report, build_result=build,
             parent_sha=state["report_sha"], cfg=self.deps.cfg,
-            artifact_prefix=f"{self.seq['repair']:02d}-repair")
+            artifact_prefix=f"{self.seq['repair']:02d}-repair", **kw)
         return result, meta, []
 
     def _eval_plan(self, p: Plan, state: PipelineState) -> list[str]:
@@ -360,6 +414,88 @@ class _Run:
     def _eval_split(self, r, state: PipelineState) -> list[str]:
         p = artifacts.load(Path(state["plan_path"]), Plan) if state.get("plan_path") else None
         return evaluators.evaluate_split_build(r, p)
+
+    def _architect(self, state: PipelineState):
+        brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
+        p = artifacts.load(Path(state["plan_path"]), Plan, expected_sha=state["plan_sha"])
+        spec, meta = architect_stage.produce(brief=brief, plan=p, parent_sha=state["plan_sha"],
+                                             caller=self.deps.caller, cfg=self.deps.cfg)
+        return spec, meta, []
+
+    def _ux(self, state: PipelineState):
+        brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
+        p = artifacts.load(Path(state["plan_path"]), Plan, expected_sha=state["plan_sha"])
+        flows, meta = ux_stage.produce(brief=brief, plan=p, parent_sha=state["techspec_sha"],
+                                       caller=self.deps.caller, cfg=self.deps.cfg)
+        return flows, meta, []
+
+    def _ui(self, state: PipelineState):
+        brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
+        uxf = artifacts.load(Path(state["ux_path"]), UXFlows, expected_sha=state["ux_sha"])
+        spec, meta = design_stage.produce(
+            brief=brief, evidence=self._load_evidence(state), parent_sha=state["ux_sha"],
+            components=design_stage.load_components(self.deps.template_dir),
+            caller=self.deps.caller, cfg=self.deps.cfg, ux=uxf)
+        return spec, meta, []
+
+    def _load_build(self, state: PipelineState, key: str = "build"):
+        from pipeline.contracts import SplitBuildResult
+        model = SplitBuildResult if "build_split" in self.nodes and key == "build" else BuildResult
+        return artifacts.load(Path(state[f"{key}_path"]), model, expected_sha=state[f"{key}_sha"])
+
+    def _program_meta(self, t0: float) -> CallMeta:
+        return CallMeta(model="none", usage=Usage(), cost_reported=0.0,
+                        wall_ms=int((time.monotonic() - t0) * 1000))
+
+    def _review_from(self, state: PipelineState, build_key: str):
+        t0 = time.monotonic()
+        build = self._load_build(state, build_key)
+        p = artifacts.load(Path(state["plan_path"]), Plan, expected_sha=state["plan_sha"]) \
+            if state.get("plan_path") else None
+        ts = artifacts.load(Path(state["techspec_path"]), TechSpec, expected_sha=state["techspec_sha"]) \
+            if state.get("techspec_path") else None
+        rep = review_stage.produce(app_dir=Path(build.app_dir), template_dir=Path(self.deps.template_dir),
+                                   build=build, plan=p, techspec=ts,
+                                   parent_sha=state[f"{build_key}_sha"], run_id=self.run_id)
+        return rep, self._program_meta(t0), []
+
+    def _review(self, state: PipelineState):
+        return self._review_from(state, "build")
+
+    def _review2(self, state: PipelineState):
+        # the repair artifact carries no overlap attribution; disk-state checks re-run in full
+        return self._review_from(state, "repair")
+
+    def _security_from(self, state: PipelineState, parent_key: str):
+        import subprocess as _sp
+        t0 = time.monotonic()
+        build = self._load_build(state)
+        rep = security_stage.produce(app_dir=Path(build.app_dir), template_dir=Path(self.deps.template_dir),
+                                     cfg=self.deps.cfg, parent_sha=state[parent_key], run_id=self.run_id,
+                                     runner=self.deps.audit or _sp.run)
+        return rep, self._program_meta(t0), []
+
+    def _security(self, state: PipelineState):
+        return self._security_from(state, "report_sha")
+
+    def _security2(self, state: PipelineState):
+        return self._security_from(state, "report2_sha")
+
+    def _ship(self, state: PipelineState):
+        import subprocess as _sp
+        t0 = time.monotonic()
+        build = self._load_build(state)
+        parent = state.get("security2_sha") or state["security_sha"]
+        rec = release_stage.produce(app_dir=Path(build.app_dir), parent_sha=parent, run_id=self.run_id,
+                                    cfg=self.deps.cfg, runner=self.deps.deploy or _sp.run)
+        return rec, self._program_meta(t0), []
+
+    def _analytics(self, state: PipelineState):
+        t0 = time.monotonic()
+        rec = artifacts.load(Path(state["ship_path"]), ShipRecord, expected_sha=state["ship_sha"])
+        rep = analytics_stage.produce(url=rec.url, parent_sha=state["ship_sha"], run_id=self.run_id,
+                                      cfg=self.deps.cfg, probe=self.deps.probe)
+        return rep, self._program_meta(t0), []
 
     # ---- terminal nodes ---------------------------------------------------------------------
 
@@ -387,6 +523,8 @@ class _Run:
 
 
 def _route_for(name: str, nxt: str, nodes: tuple[str, ...]):
+    crew = "security" in nodes
+
     def route(state: PipelineState) -> str:
         if state.get("failure"):
             if name == "repair":
@@ -394,10 +532,22 @@ def _route_for(name: str, nxt: str, nodes: tuple[str, ...]):
             return "failed"
         if name == "panel" and state.get("status") == "killed":
             return "killed"
-        if name == "verify" and "repair" in nodes:
-            return "finish" if state.get("status") == "success" else "repair"
-        if name == "verify2":
-            return "finish"
+        if crew:
+            # the three red boxes run in sequence and speak after security: all green -> ship,
+            # anything red -> one repair pass (first time) or the end (second time)
+            if name == "security":
+                if state.get("status") == "success":
+                    return "ship" if "ship" in nodes else "finish"
+                return nxt  # repair is next in line
+            if name == "security2":
+                if state.get("status") == "success":
+                    return "ship" if "ship" in nodes else "finish"
+                return "finish"
+        else:
+            if name == "verify" and "repair" in nodes:
+                return "finish" if state.get("status") == "success" else "repair"
+            if name == "verify2":
+                return "finish"
         return nxt
     return route
 
@@ -408,6 +558,10 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
         "intake": run._intake, "evidence": run._evidence, "panel": run._panel, "plan": run._plan,
         "design": run._design, "build": run._build, "build_split": run._build_split,
         "verify": run._verify, "verify2": run._verify2, "repair": run._repair,
+        "architect": run._architect, "ux": run._ux, "ui": run._ui,
+        "review": run._review, "review2": run._review2,
+        "security": run._security, "security2": run._security2,
+        "ship": run._ship, "analytics": run._analytics,
     }
     evals: dict[str, Callable] = {
         "intake": lambda b, s: evaluators.evaluate_brief(b, parse_idea(Path(s["idea_path"]).read_text())),
@@ -423,6 +577,13 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
             d, artifacts.load(Path(s["brief_path"]), Brief),
             design_stage.load_components(run.deps.template_dir)),
         "build_split": run._eval_split,
+        "architect": lambda t, s: evaluators.evaluate_techspec(
+            t, artifacts.load(Path(s["plan_path"]), Plan)),
+        "ux": lambda u, s: evaluators.evaluate_uxflows(u, artifacts.load(Path(s["brief_path"]), Brief)),
+        "ui": lambda d, s: evaluators.evaluate_design(
+            d, artifacts.load(Path(s["brief_path"]), Brief),
+            design_stage.load_components(run.deps.template_dir),
+            ux=artifacts.load(Path(s["ux_path"]), UXFlows)),
     }
     g = StateGraph(PipelineState)
     for name in nodes:
@@ -438,17 +599,25 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
         targets = {nxt: nxt, "failed": "failed"}
         if name == "panel":
             targets["killed"] = "killed"
-        if name == "verify" and "repair" in nodes:
+        if name == "verify" and "repair" in nodes and "security" not in nodes:
             targets.update({"finish": "finish", "repair": "repair"})
         if name == "repair":
             targets["finish"] = "finish"
-        if name == "verify2":
+        if name == "verify2" and "security" not in nodes:
             targets = {"finish": "finish", "failed": "failed"}
+        if name in ("security", "security2"):
+            targets["finish"] = "finish"
+            if "ship" in nodes:
+                targets["ship"] = "ship"
         g.add_conditional_edges(name, _route_for(name, nxt, nodes), targets)
     for t in ("failed", "killed", "finish"):
         g.add_edge(t, END)
     pause = "build_split" if "build_split" in nodes else "build"
-    return g.compile(checkpointer=InMemorySaver(), interrupt_before=[] if yes else [pause])
+    interrupts = [] if yes else [pause]
+    if "ship" in nodes:
+        # pressing publish is one of the diagram's two human touches; --yes never skips it
+        interrupts.append("ship")
+    return g.compile(checkpointer=InMemorySaver(), interrupt_before=interrupts)
 
 
 @dataclass
@@ -472,12 +641,21 @@ class Handle:
         parts = []
         for p in sorted(self.run.run_dir.glob("0*-*.json")):
             if p.name != "00-manifest.json" and not p.name.endswith((".rejected.json",)) \
-                    and p.stem.split("-", 1)[1] in ("brief", "evidence", "panel", "plan", "design"):
+                    and p.stem.split("-", 1)[1] in ("brief", "evidence", "panel", "plan", "techspec",
+                                                    "ux", "design"):
                 parts.append(f"--- {p.name} ---\n{p.read_text()}")
         return "\n".join(parts)
 
-    def resume(self) -> Outcome:
+    def resume(self) -> Outcome | None:
+        """Runs to the next interrupt or the end. Returns the Outcome only when finished."""
         self.graph.invoke(None, self.config)
+        if self.next:
+            return None
+        return self._finish()
+
+    def decline_ship(self) -> Outcome:
+        """The human said no at publish. A measurement, not a failure: the app is verified."""
+        self.run.write_manifest("verified_unshipped", None, finished=True)
         return self._finish()
 
     def abort(self) -> Outcome:
@@ -505,7 +683,10 @@ def start(*, deps: Deps, variant: Variant, idea_path: Path, idea_id: str, run_id
 
 
 def run(*, deps: Deps, variant: Variant, idea_path: Path, idea_id: str, run_id: str, yes: bool) -> Outcome:
+    """Runs to the end, resuming through every pause (tests and eval only; the CLI prompts)."""
     h = start(deps=deps, variant=variant, idea_path=idea_path, idea_id=idea_id, run_id=run_id, yes=yes)
-    if h.outcome is None:
-        return h.resume()
+    while h.outcome is None:
+        if not h.next:
+            return h._finish()
+        h.resume()
     return h.outcome

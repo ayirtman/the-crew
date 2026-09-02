@@ -15,7 +15,7 @@ def _parser() -> argparse.ArgumentParser:
     from pipeline.variants import VARIANTS
     r.add_argument("--graph", choices=sorted(VARIANTS), required=True)
     r.add_argument("--idea", required=True, help="idea id (01) from corpus/ideas, or a path to a dev idea")
-    r.add_argument("--yes", action="store_true", help="skip the pause before Build")
+    r.add_argument("--yes", action="store_true", help="skip the pause before Build (the publish pause always stays)")
     r.add_argument("--mock", action="store_true", help="no tokens: canned Brief/Plan, fixture app")
 
     e = sub.add_parser("eval", help="run the whole corpus through one graph", parents=[common])
@@ -49,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
         t = out.manifest.totals
         print(f"{out.status}  {out.run_dir}  cost ${t.cost_usd:.4f} (billed ${t.billed_usd:.4f})  "
               f"{t.wall_ms / 1000:.1f}s")
-        return 0 if out.status in ("success", "verify_failed") else 1
+        return 0 if out.status in ("success", "verify_failed", "verified_unshipped") else 1
     if args.cmd == "eval":
         from pipeline.eval import run_corpus
         return run_corpus(root=root, graph=args.graph, yes=args.yes, mock=args.mock, force=args.force)
