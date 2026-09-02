@@ -276,3 +276,20 @@ def test_v2p_kill_ends_run_as_killed_not_failed(tmp_path):
     assert (run_dir / "03-panel.json").exists()
     assert not list(run_dir.glob("*-plan.json")) and not list(run_dir.glob("*-build.json"))
     assert not list(run_dir.glob("*-failure.json"))
+
+
+def test_repair_stage_failure_degrades_to_verify_failed_not_failed(tmp_path):
+    from pipeline.budget import BudgetExceeded
+    from pipeline.contracts import BudgetSnapshot
+
+    def exploding_repair(**kw):
+        raise BudgetExceeded("repair wall-clock exceeded", BudgetSnapshot())
+
+    d = _deps_with_repair(tmp_path, first_verify_ok=False, repair_fixes=True)
+    deps = G.Deps(cfg=d.cfg, caller=d.caller, build=d.build, verify=d.verify, repair=exploding_repair,
+                  template_dir=d.template_dir, apps_dir=d.apps_dir, runs_dir=d.runs_dir)
+    out = G.run(deps=deps, variant="v1r", idea_path=_idea(tmp_path), idea_id="01", run_id="rb1", yes=True)
+    assert out.status == "verify_failed"
+    m = _manifest(tmp_path, "rb1")
+    assert m.status == "verify_failed"
+    assert list((tmp_path / "runs" / "rb1").glob("05-failure.json"))

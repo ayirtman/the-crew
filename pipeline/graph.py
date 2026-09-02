@@ -169,7 +169,11 @@ class _Run:
                 self.records.append(StageRecord(**rec))
                 self.write_manifest("running", None)
                 log.info("[%s] FAILED %s: %s", name, kind, "; ".join(reasons)[:300])
-                return {"failure": f.model_dump(), "stage_records": [rec]}
+                out = {"failure": f.model_dump(), "stage_records": [rec]}
+                if name == "repair":
+                    # a dead repair does not erase the run: the first verify's verdict stands
+                    out["status"] = "verify_failed"
+                return out
 
             try:
                 self.ledger.check()
@@ -385,6 +389,8 @@ class _Run:
 def _route_for(name: str, nxt: str, nodes: tuple[str, ...]):
     def route(state: PipelineState) -> str:
         if state.get("failure"):
+            if name == "repair":
+                return "finish"
             return "failed"
         if name == "panel" and state.get("status") == "killed":
             return "killed"
@@ -434,6 +440,8 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
             targets["killed"] = "killed"
         if name == "verify" and "repair" in nodes:
             targets.update({"finish": "finish", "repair": "repair"})
+        if name == "repair":
+            targets["finish"] = "finish"
         if name == "verify2":
             targets = {"finish": "finish", "failed": "failed"}
         g.add_conditional_edges(name, _route_for(name, nxt, nodes), targets)

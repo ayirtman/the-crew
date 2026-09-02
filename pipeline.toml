@@ -55,7 +55,7 @@ max_seconds = 180
 model = "haiku"
 auth = "subscription"
 max_turns = 30
-max_seconds = 600
+max_seconds = 900
 max_total_tokens = 400000
 max_cost_usd = 0.75
 
