@@ -18,6 +18,13 @@ def _parser() -> argparse.ArgumentParser:
     r.add_argument("--yes", action="store_true", help="skip the pause before Build (the publish pause always stays)")
     r.add_argument("--mock", action="store_true", help="no tokens: canned Brief/Plan, fixture app")
 
+    d = sub.add_parser("develop", help="interview first, then run; a panel kill re-interviews (max 2)",
+                       parents=[common])
+    d.add_argument("--graph", choices=sorted(VARIANTS), default="crew")
+    d.add_argument("--idea", required=True)
+    d.add_argument("--yes", action="store_true", help="skip the pause before Build (the publish pause always stays)")
+    d.add_argument("--mock", action="store_true")
+
     e = sub.add_parser("eval", help="run the whole corpus through one graph", parents=[common])
     e.add_argument("--graph", choices=sorted(VARIANTS), required=True)
     e.add_argument("--yes", action="store_true")
@@ -50,6 +57,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{out.status}  {out.run_dir}  cost ${t.cost_usd:.4f} (billed ${t.billed_usd:.4f})  "
               f"{t.wall_ms / 1000:.1f}s")
         return 0 if out.status in ("success", "verify_failed", "verified_unshipped") else 1
+    if args.cmd == "develop":
+        from pipeline.runner import develop
+        out = develop(root=root, graph=args.graph, idea_id=args.idea, yes=args.yes, mock=args.mock)
+        if out is None:
+            print("nothing run")
+            return 1
+        t = out.manifest.totals
+        print(f"{out.status}  {out.run_dir}  cost ${t.cost_usd:.4f} (billed ${t.billed_usd:.4f})")
+        return 0 if out.status in ("success", "verify_failed", "verified_unshipped", "killed") else 1
     if args.cmd == "eval":
         from pipeline.eval import run_corpus
         return run_corpus(root=root, graph=args.graph, yes=args.yes, mock=args.mock, force=args.force)

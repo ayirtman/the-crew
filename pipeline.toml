@@ -69,6 +69,16 @@ max_seconds = 600
 max_total_tokens = 450000
 max_cost_usd = 0.90
 
+[stages.interview]
+model = "haiku"
+retry_model = "sonnet"
+auth = "subscription"
+max_turns = 4
+max_attempts = 2
+max_output_tokens = 2000
+max_input_chars = 30000
+max_seconds = 300
+
 [stages.architect]
 model = "haiku"
 retry_model = "sonnet"

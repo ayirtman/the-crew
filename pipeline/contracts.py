@@ -391,6 +391,68 @@ class DesignSpec(DesignSpecDraft):
 
 
 
+# ------------------------------------------------------------- Interview (Discovery)
+
+
+class InterviewQuestion(BaseModel):
+    model_config = STRICT
+    id: str
+    question: str
+    why: str
+
+    @field_validator("question")
+    @classmethod
+    def _q(cls, v: str) -> str:
+        if len(v) < 10:
+            raise ValueError("question: shorter than 10 chars")
+        return v
+
+
+class InterviewQuestionsDraft(BaseModel):
+    model_config = STRICT
+    questions: list[InterviewQuestion]
+
+    @field_validator("questions")
+    @classmethod
+    def _qs(cls, v):
+        _count(v, "questions", 3, 8)
+        _unique([q.id for q in v], "questions")
+        return v
+
+
+class IdeaRevisionDraft(BaseModel):
+    """A proposed new idea file. Never written without the human approving the diff."""
+    model_config = STRICT
+    prose: str
+    musts: list[str]
+    nevers: list[str]
+    change_note: str
+
+    @field_validator("prose")
+    @classmethod
+    def _prose(cls, v: str) -> str:
+        if len(v) < 50:
+            raise ValueError("prose: shorter than 50 chars")
+        return v
+
+    @field_validator("musts")
+    @classmethod
+    def _musts(cls, v):
+        return _unique(_count(v, "musts", 1, 10), "musts")
+
+    @field_validator("nevers")
+    @classmethod
+    def _nevers(cls, v):
+        return _unique(_count(v, "nevers", 0, 10), "nevers")
+
+    @field_validator("change_note")
+    @classmethod
+    def _note(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("change_note: empty")
+        return v
+
+
 # ---------------------------------------------------------------- TechSpec (Architect)
 
 

@@ -138,3 +138,70 @@ def verify_only(*, root: Path, run_id: str) -> int:
     artifacts.write(out_dir, n, "verify", rep)
     print(f"verify_pass={rep.verify_pass} tests {rep.tests_passed}/{rep.tests_total} -> {out_dir}")
     return 0 if rep.verify_pass else 1
+
+
+def develop(*, root: Path, graph: str, idea_id: str, yes: bool, mock: bool, out=sys.stdout,
+            ask=input, caller=None, max_kill_loops: int = 2):
+    """The discovery loop: interview -> approved revision -> run; a panel kill re-interviews
+    from the objections, at most `max_kill_loops` times. The third kill is the verdict.
+    Returns the final Outcome, or None if a revision was declined before any run."""
+    import difflib
+
+    from pipeline import artifacts
+    from pipeline.contracts import ReactionReport
+    from pipeline.idea import render_idea
+    from pipeline.stages import interview
+
+    root = Path(root)
+    cfg = load_config(root / "pipeline.toml")
+    idea_id, idea_path = resolve_idea(root, idea_id)
+    caller = caller or ClaudeCliCaller()
+
+    def one_interview(panel=None) -> bool:
+        """Interview, propose, diff, approve. Returns False if the human declined."""
+        text = idea_path.read_text()
+        qs, _ = interview.questions(idea_text=text, caller=caller, cfg=cfg, panel=panel)
+        qa = []
+        print("\n-- discovery interview" + (" (after a panel kill)" if panel else "") + " --", file=out)
+        for q in qs.questions:
+            print(f"\n[{q.id} · {q.why}] {q.question}", file=out)
+            try:
+                a = ask("> ").strip()
+            except EOFError:
+                a = ""
+            qa.append((q.question, a or "(no answer)"))
+        rev, _ = interview.revise(idea_text=text, qa=qa, caller=caller, cfg=cfg)
+        new_text = render_idea(rev.prose, rev.musts, rev.nevers)
+        print(f"\nchange note: {rev.change_note}\n", file=out)
+        diff = difflib.unified_diff(text.splitlines(True), new_text.splitlines(True),
+                                    fromfile=str(idea_path), tofile="revised")
+        print("".join(diff) or "(no textual change)", file=out)
+        try:
+            answer = ask("Approve this revision? [y/N] ").strip().lower()
+        except EOFError:
+            answer = "n"
+        if answer != "y":
+            print("revision declined; the idea file is untouched", file=out)
+            return False
+        ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+        transcript = idea_path.with_name(f"{idea_path.stem}.interview-{ts}.md")
+        transcript.write_text(
+            f"# Interview {ts}\n\n" + "\n\n".join(f"**Q:** {q}\n**A:** {a}" for q, a in qa)
+            + f"\n\n**Change note:** {rev.change_note}\n")
+        idea_path.write_text(new_text)
+        print(f"idea revised; transcript at {transcript.name}", file=out)
+        return True
+
+    if not one_interview():
+        return None
+    kills = 0
+    while True:
+        outcome = run_one(root=root, graph=graph, idea_id=str(idea_path), yes=yes, mock=mock, out=out)
+        if outcome.status != "killed" or kills >= max_kill_loops:
+            return outcome
+        kills += 1
+        panels = sorted(Path(outcome.run_dir).glob("*-panel.json"))
+        panel = artifacts.load(panels[-1], ReactionReport) if panels else None
+        print(f"\nkill {kills} of {max_kill_loops + 1} allowed: the panel's objections become the interview", file=out)
+        if not one_interview(panel=panel):
+            return outcome

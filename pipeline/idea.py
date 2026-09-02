@@ -48,3 +48,17 @@ def parse_idea(text: str) -> ParsedIdea:
             continue
         prose_lines.append(line)
     return ParsedIdea(prose="\n".join(prose_lines).strip() + "\n", musts=musts, nevers=nevers)
+
+
+def render_idea(prose: str, musts: list[str], nevers: list[str]) -> str:
+    """The inverse of parse_idea: a revision back into the contract file format."""
+    parts = [prose.strip(), ""]
+    if musts:
+        parts.append("## Must")
+        parts.extend(f"- {m}" for m in musts)
+        parts.append("")
+    if nevers:
+        parts.append("## Never")
+        parts.extend(f"- {n}" for n in nevers)
+        parts.append("")
+    return "\n".join(parts).rstrip() + "\n"
