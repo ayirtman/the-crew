@@ -20,14 +20,18 @@ def result_line(run_dir: Path) -> dict:
         "upstream_rejections": sum(s.upstream_rejections for s in m.stages),
         "build_turns": None, "template_version": m.template_version, "git_sha": m.pipeline_git_sha,
     }
-    v = run_dir / "04-verify.json"
-    if v.exists():
-        d = json.loads(v.read_text())
-        line.update(verify_pass=bool(d.get("verify_pass")), tests_passed=d.get("tests_passed"),
-                    tests_total=d.get("tests_total"))
-    b = run_dir / "03-build.json"
-    if b.exists():
-        line["build_turns"] = json.loads(b.read_text()).get("num_turns")
+    verifies = sorted(run_dir.glob("*-verify.json"))
+    line["repaired"] = bool(list(run_dir.glob("*-repair.json")))
+    line["first_verify_pass"] = None
+    if verifies:
+        final = json.loads(verifies[-1].read_text())
+        line.update(verify_pass=bool(final.get("verify_pass")), tests_passed=final.get("tests_passed"),
+                    tests_total=final.get("tests_total"))
+        if len(verifies) > 1:
+            line["first_verify_pass"] = bool(json.loads(verifies[0].read_text()).get("verify_pass"))
+    builds = sorted(run_dir.glob("*-build.json"))
+    if builds:
+        line["build_turns"] = json.loads(builds[0].read_text()).get("num_turns")
     return line
 
 

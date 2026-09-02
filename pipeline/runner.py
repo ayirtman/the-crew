@@ -25,7 +25,7 @@ def real_build(**kw):
     return build.produce(**kw)
 
 
-def fake_build(*, app_dir, run_dir, brief, plan, parent_sha, cfg, runner=None):
+def fake_build(*, app_dir, run_dir, brief, plan, parent_sha, cfg, runner=None, artifact_prefix="03-build"):
     """Drops the known-good fixture app into the app dir. Zero tokens."""
     src = FIXTURES / "app_good"
     written = []
@@ -103,12 +103,14 @@ def verify_only(*, root: Path, run_id: str) -> int:
     root = Path(root)
     run_dir = root / "runs" / run_id
     cfg = load_config(root / "pipeline.toml")
-    build_path = run_dir / "03-build.json"
-    if not build_path.exists():
-        sys.exit(f"{run_dir} has no 03-build.json")
+    builds = sorted(run_dir.glob("*-build.json"))
+    if not builds:
+        sys.exit(f"{run_dir} has no build artifact")
+    build_path = builds[0]
     build_res = artifacts.load(build_path, BuildResult)
     brief = artifacts.load(run_dir / "01-brief.json", Brief)
-    plan = artifacts.load(run_dir / "02-plan.json", Plan) if (run_dir / "02-plan.json").exists() else None
+    plans = sorted(run_dir.glob("*-plan.json"))
+    plan = artifacts.load(plans[0], Plan) if plans else None
     out_dir = run_dir / "reverify"
     out_dir.mkdir(exist_ok=True)
     rep = verify.produce(app_dir=Path(build_res.app_dir), run_dir=out_dir, brief=brief, plan=plan,

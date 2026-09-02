@@ -402,20 +402,21 @@ class Totals(BaseModel):
     output_tokens: int
 
 
-RunStatus = Literal["running", "success", "verify_failed", "failed", "aborted"]
+RunStatus = Literal["running", "success", "verify_failed", "failed", "aborted", "killed"]
 
 
 class RunManifest(BaseModel):
     model_config = STRICT
     schema_version: Literal["1"] = "1"
     run_id: str
-    graph: Literal["v0", "v1"]
+    graph: str
     idea_id: str
     started_at: str
     finished_at: str | None
     status: RunStatus
     failed_stage: str | None
     stages: list[StageRecord]
+    variant_stages: list[str] = []
     config_snapshot: dict
     pipeline_git_sha: str
     template_version: str

@@ -30,14 +30,18 @@ from pipeline.idea import parse_idea
 from pipeline.llm import CallerError, SchemaInvalid, StructuredCaller
 from pipeline.stages import CallMeta, intake, plan as plan_stage, template
 from pipeline.stages.build import BuilderError
+from pipeline.variants import VARIANTS, expand
 
 log = logging.getLogger("pipeline")
 
-Variant = Literal["v0", "v1"]
-SEQ = {"intake": 1, "plan": 2, "build": 3, "verify": 4}
+Variant = str
 # stage name -> artifact name (file stem) and state key prefix
-ARTIFACT = {"intake": "brief", "plan": "plan", "build": "build", "verify": "verify"}
-STATE_KEY = {"intake": "brief", "plan": "plan", "build": "build", "verify": "report"}
+ARTIFACT = {"intake": "brief", "evidence": "evidence", "panel": "panel", "plan": "plan",
+            "design": "design", "build": "build", "build_split": "build", "repair": "repair",
+            "verify": "verify", "verify2": "verify"}
+STATE_KEY = {"intake": "brief", "evidence": "evidence", "panel": "panel", "plan": "plan",
+             "design": "design", "build": "build", "build_split": "build", "repair": "repair",
+             "verify": "report", "verify2": "report2"}
 
 
 @dataclass
@@ -59,8 +63,18 @@ class PipelineState(TypedDict, total=False):
     idea_sha: str
     brief_path: str
     brief_sha: str
+    evidence_path: str
+    evidence_sha: str
+    panel_path: str
+    panel_sha: str
     plan_path: str
     plan_sha: str
+    design_path: str
+    design_sha: str
+    repair_path: str
+    repair_sha: str
+    report2_path: str
+    report2_sha: str
     build_path: str
     build_sha: str
     report_path: str
@@ -105,6 +119,8 @@ class _Run:
 
     def __init__(self, deps: Deps, variant: Variant, run_id: str, idea_id: str):
         self.deps, self.variant, self.run_id, self.idea_id = deps, variant, run_id, idea_id
+        self.nodes = expand(variant)
+        self.seq = {name: i + 1 for i, name in enumerate(self.nodes)}
         self.run_dir = Path(deps.runs_dir) / run_id
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.ledger = Ledger(max_cost_usd=deps.cfg.run.max_cost_usd, max_seconds=deps.cfg.run.max_seconds)
@@ -118,7 +134,8 @@ class _Run:
         m = RunManifest(
             run_id=self.run_id, graph=self.variant, idea_id=self.idea_id, started_at=self.started_at,
             finished_at=_now() if finished else None, status=status, failed_stage=failed_stage,
-            stages=list(self.records), config_snapshot=self.deps.cfg.snapshot(),
+            stages=list(self.records), variant_stages=list(VARIANTS[self.variant]),
+            config_snapshot=self.deps.cfg.snapshot(),
             pipeline_git_sha=_git_sha(), template_version=self.template_version,
             claude_code_version=_claude_version(),
         )
@@ -129,7 +146,7 @@ class _Run:
 
     def stage(self, name: str, produce: Callable[[PipelineState], tuple[Any, CallMeta, list[str]]],
               evaluate: Callable[[Any, PipelineState], list[str]]) -> Callable[[PipelineState], dict]:
-        seq = SEQ[name]
+        seq = self.seq[name]
 
         def node(state: PipelineState) -> dict:
             t0 = time.monotonic()
@@ -202,8 +219,10 @@ class _Run:
             log.info("[%s] ok %.0fs cost $%.4f attempts=%d -> %s", name, wall / 1000, cost, meta.attempts, path.name)
             key = STATE_KEY[name]
             out: dict = {f"{key}_path": str(path), f"{key}_sha": sha, "stage_records": [rec]}
-            if name == "verify":
+            if name in ("verify", "verify2"):
                 out["status"] = "success" if artifact.verify_pass else "verify_failed"
+            if name == "panel" and getattr(artifact, "kill", False):
+                out["status"] = "killed"
             return out
 
         return node
@@ -232,19 +251,27 @@ class _Run:
             parent = state["plan_sha"]
         app_dir = template.materialize(self.deps.template_dir, self.deps.apps_dir, self.run_id)
         result, meta = self.deps.build(app_dir=app_dir, run_dir=self.run_dir, brief=brief, plan=p,
-                                       parent_sha=parent, cfg=self.deps.cfg)
+                                       parent_sha=parent, cfg=self.deps.cfg,
+                                       artifact_prefix=f"{self.seq['build']:02d}-build")
         return result, meta, []
 
-    def _verify(self, state: PipelineState):
+    def _verify_from(self, state: PipelineState, build_key: str):
         brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
         p = artifacts.load(Path(state["plan_path"]), Plan, expected_sha=state["plan_sha"]) \
             if state.get("plan_path") else None
-        build = artifacts.load(Path(state["build_path"]), BuildResult, expected_sha=state["build_sha"])
+        build = artifacts.load(Path(state[f"{build_key}_path"]), BuildResult,
+                               expected_sha=state[f"{build_key}_sha"])
         t0 = time.monotonic()
         report = self.deps.verify(app_dir=Path(build.app_dir), run_dir=self.run_dir, brief=brief, plan=p,
-                                  build_sha=state["build_sha"], cfg=self.deps.cfg)
+                                  build_sha=state[f"{build_key}_sha"], cfg=self.deps.cfg)
         return report, CallMeta(model="none", usage=Usage(), cost_reported=0.0,
                                 wall_ms=int((time.monotonic() - t0) * 1000)), []
+
+    def _verify(self, state: PipelineState):
+        return self._verify_from(state, "build")
+
+    def _verify2(self, state: PipelineState):
+        return self._verify_from(state, "repair")
 
     def _eval_plan(self, p: Plan, state: PipelineState) -> list[str]:
         brief = artifacts.load(Path(state["brief_path"]), Brief)
@@ -255,6 +282,16 @@ class _Run:
         return evaluators.evaluate_build(r, p)
 
     # ---- terminal nodes ---------------------------------------------------------------------
+
+    def _not_implemented(self, name: str):
+        def producer(state: PipelineState):
+            raise BuilderError(f"stage '{name}' is not implemented yet")
+        return producer
+
+    def killed(self, state: PipelineState) -> dict:
+        self.write_manifest("killed", None, finished=True)
+        log.info("[run] killed by the panel")
+        return {"status": "killed"}
 
     def failed(self, state: PipelineState) -> dict:
         f = state.get("failure") or {}
@@ -269,32 +306,56 @@ class _Run:
         return {"status": status}
 
 
-def _route(next_node: str):
+def _route_for(name: str, nxt: str, nodes: tuple[str, ...]):
     def route(state: PipelineState) -> str:
-        return "failed" if state.get("failure") else next_node
+        if state.get("failure"):
+            return "failed"
+        if name == "panel" and state.get("status") == "killed":
+            return "killed"
+        if name == "verify" and "repair" in nodes:
+            return "finish" if state.get("status") == "success" else "repair"
+        if name == "verify2":
+            return "finish"
+        return nxt
     return route
 
 
 def build_graph(run: _Run, variant: Variant, *, yes: bool):
+    nodes = run.nodes
+    producers = {
+        "intake": run._intake, "plan": run._plan, "build": run._build,
+        "verify": run._verify, "verify2": run._verify2,
+    }
+    evals: dict[str, Callable] = {
+        "intake": lambda b, s: evaluators.evaluate_brief(b, parse_idea(Path(s["idea_path"]).read_text())),
+        "plan": run._eval_plan,
+        "build": run._eval_build,
+        "verify": lambda r, s: evaluators.evaluate_report(r),
+        "verify2": lambda r, s: evaluators.evaluate_report(r),
+    }
     g = StateGraph(PipelineState)
-    g.add_node("intake", run.stage("intake", run._intake,
-               lambda b, s: evaluators.evaluate_brief(b, parse_idea(Path(s["idea_path"]).read_text()))))
-    if variant == "v1":
-        g.add_node("plan", run.stage("plan", run._plan, run._eval_plan))
-    g.add_node("build", run.stage("build", run._build, run._eval_build))
-    g.add_node("verify", run.stage("verify", run._verify, lambda r, s: evaluators.evaluate_report(r)))
+    for name in nodes:
+        producer = producers.get(name) or run._not_implemented(name)
+        ev = evals.get(name) or (lambda a, s: [])
+        g.add_node(name, run.stage(name, producer, ev))
     g.add_node("failed", run.failed)
+    g.add_node("killed", run.killed)
     g.add_node("finish", run.finish)
-    g.add_edge(START, "intake")
-    after_intake = "plan" if variant == "v1" else "build"
-    g.add_conditional_edges("intake", _route(after_intake), {after_intake: after_intake, "failed": "failed"})
-    if variant == "v1":
-        g.add_conditional_edges("plan", _route("build"), {"build": "build", "failed": "failed"})
-    g.add_conditional_edges("build", _route("verify"), {"verify": "verify", "failed": "failed"})
-    g.add_conditional_edges("verify", _route("finish"), {"finish": "finish", "failed": "failed"})
-    g.add_edge("failed", END)
-    g.add_edge("finish", END)
-    return g.compile(checkpointer=InMemorySaver(), interrupt_before=[] if yes else ["build"])
+    g.add_edge(START, nodes[0])
+    following = list(nodes[1:]) + ["finish"]
+    for name, nxt in zip(nodes, following):
+        targets = {nxt: nxt, "failed": "failed"}
+        if name == "panel":
+            targets["killed"] = "killed"
+        if name == "verify" and "repair" in nodes:
+            targets.update({"finish": "finish", "repair": "repair"})
+        if name == "verify2":
+            targets = {"finish": "finish", "failed": "failed"}
+        g.add_conditional_edges(name, _route_for(name, nxt, nodes), targets)
+    for t in ("failed", "killed", "finish"):
+        g.add_edge(t, END)
+    pause = "build_split" if "build_split" in nodes else "build"
+    return g.compile(checkpointer=InMemorySaver(), interrupt_before=[] if yes else [pause])
 
 
 @dataclass
@@ -316,9 +377,9 @@ class Handle:
 
     def summary(self) -> str:
         parts = []
-        for fn in ("01-brief.json", "02-plan.json"):
-            p = self.run.run_dir / fn
-            if p.exists():
+        for p in sorted(self.run.run_dir.glob("0*-*.json")):
+            if p.name != "00-manifest.json" and not p.name.endswith((".rejected.json",)) \
+                    and p.stem.split("-", 1)[1] in ("brief", "evidence", "panel", "plan", "design"):
                 parts.append(f"--- {p.name} ---\n{p.read_text()}")
         return "\n".join(parts)
 
@@ -329,7 +390,8 @@ class Handle:
     def abort(self) -> Outcome:
         f = StageFailure(stage="build", run_id=self.run.run_id, kind="aborted_by_user",
                          reasons=["declined at the pause before build"])
-        artifacts.write(self.run.run_dir, SEQ["build"], "failure", f)
+        seq = self.run.seq.get("build") or self.run.seq["build_split"]
+        artifacts.write(self.run.run_dir, seq, "failure", f)
         self.run.write_manifest("aborted", "build", finished=True)
         return self._finish()
 

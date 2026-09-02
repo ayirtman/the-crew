@@ -66,13 +66,14 @@ def argv(prompt: str, cfg: Config) -> list[str]:
 
 
 def produce(*, app_dir: Path, run_dir: Path, brief: Brief, plan: Plan | None, parent_sha: str,
-            cfg: Config, runner: Runner = subprocess.run) -> tuple[BuildResult, CallMeta]:
+            cfg: Config, runner: Runner = subprocess.run,
+            artifact_prefix: str = "03-build") -> tuple[BuildResult, CallMeta]:
     stage = cfg.stages["build"]
     app_dir, run_dir = Path(app_dir), Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     before = tree_hashes(app_dir)
     prompt = task_prompt(brief, plan)
-    (run_dir / "03-build.prompt.md").write_text(prompt)
+    (run_dir / f"{artifact_prefix}.prompt.md").write_text(prompt)
     t0 = time.monotonic()
     try:
         proc = runner(argv(prompt, cfg), cwd=app_dir, env=_env(), timeout=stage.max_seconds,
@@ -88,14 +89,14 @@ def produce(*, app_dir: Path, run_dir: Path, brief: Brief, plan: Plan | None, pa
         raise BudgetExceeded(f"build wall-clock exceeded {stage.max_seconds} seconds",
                              BudgetSnapshot(seconds_used=time.monotonic() - t0, seconds_cap=stage.max_seconds))
     wall_ms = int((time.monotonic() - t0) * 1000)
-    (run_dir / "03-build.stderr.txt").write_text(proc.stderr or "")
+    (run_dir / f"{artifact_prefix}.stderr.txt").write_text(proc.stderr or "")
     # claude exits non-zero on max_turns and still prints the full result; keep it as data.
     try:
         raw = json.loads(proc.stdout or "")
     except json.JSONDecodeError as e:
         raise BuilderError(
             f"claude exited {proc.returncode} without a JSON result: {(proc.stderr or proc.stdout or '')[-800:]}") from e
-    (run_dir / "03-build.raw.json").write_text(json.dumps(raw, indent=2))
+    (run_dir / f"{artifact_prefix}.raw.json").write_text(json.dumps(raw, indent=2))
 
     files = diff_files(before, tree_hashes(app_dir))
     result = BuildResult.from_claude_json(

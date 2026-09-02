@@ -46,7 +46,7 @@ def test_run_mock_v0_fake_builder_writes_app_good_files(project):
     cli.main(["run", "--graph", "v0", "--idea", "01", "--yes", "--mock", "--root", str(project)])
     app = next((project / "apps").iterdir())
     assert (app / "tests" / "count.test.ts").exists() and (app / "lib" / "count.ts").exists()
-    build = json.loads((_one_run(project) / "03-build.json").read_text())
+    build = json.loads(next(_one_run(project).glob("*-build.json")).read_text())
     assert "tests/count.test.ts" in build["files_written"] and build["builder"] == "fake"
 
 

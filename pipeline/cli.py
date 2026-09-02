@@ -12,13 +12,14 @@ def _parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     r = sub.add_parser("run", help="run one idea through one graph", parents=[common])
-    r.add_argument("--graph", choices=["v0", "v1"], required=True)
+    from pipeline.variants import VARIANTS
+    r.add_argument("--graph", choices=sorted(VARIANTS), required=True)
     r.add_argument("--idea", required=True, help="idea id (01) from corpus/ideas, or a path to a dev idea")
     r.add_argument("--yes", action="store_true", help="skip the pause before Build")
     r.add_argument("--mock", action="store_true", help="no tokens: canned Brief/Plan, fixture app")
 
     e = sub.add_parser("eval", help="run the whole corpus through one graph", parents=[common])
-    e.add_argument("--graph", choices=["v0", "v1"], required=True)
+    e.add_argument("--graph", choices=sorted(VARIANTS), required=True)
     e.add_argument("--yes", action="store_true")
     e.add_argument("--mock", action="store_true")
     e.add_argument("--force", action="store_true", help="re-run ideas that already have a result")

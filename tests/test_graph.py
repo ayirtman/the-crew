@@ -30,7 +30,7 @@ def _deps(tmp_path, caller=None, cfg=None, verify_ok=True, build_files=None):
     files = build_files if build_files is not None else [
         "app/page.tsx", "app/api/count/route.ts", "lib/count.ts", "tests/count.test.ts"]
 
-    def fake_build(*, app_dir, run_dir, brief, plan, parent_sha, cfg, runner=None):
+    def fake_build(*, app_dir, run_dir, brief, plan, parent_sha, cfg, runner=None, artifact_prefix="03-build"):
         for f in files:
             p = Path(app_dir) / f
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -75,12 +75,12 @@ def test_v1_reaches_finish_with_ordered_parent_chain(tmp_path):
     assert out.status == "success"
 
 
-def test_v0_skips_plan_and_numbers_build_third(tmp_path):
+def test_v0_skips_plan_and_numbers_by_execution_order(tmp_path):
     G.run(deps=_deps(tmp_path), variant="v0", idea_path=_idea(tmp_path), idea_id="01", run_id="r0", yes=True)
     run_dir = tmp_path / "runs" / "r0"
     names = sorted(p.name for p in run_dir.glob("0?-*.json"))
-    assert names == ["00-manifest.json", "01-brief.json", "03-build.json", "04-verify.json"]
-    build = json.loads((run_dir / "03-build.json").read_text())
+    assert names == ["00-manifest.json", "01-brief.json", "02-build.json", "03-verify.json"]
+    build = json.loads((run_dir / "02-build.json").read_text())
     assert build["parent"] == _manifest(tmp_path, "r0").stages[0].artifact_sha256
 
 
@@ -123,7 +123,7 @@ def test_verify_failure_is_data_not_a_crash(tmp_path):
     out = G.run(deps=_deps(tmp_path, verify_ok=False), variant="v0", idea_path=_idea(tmp_path), idea_id="01",
                 run_id="r5", yes=True)
     assert out.status == "verify_failed"
-    assert (tmp_path / "runs" / "r5" / "04-verify.json").exists()
+    assert list((tmp_path / "runs" / "r5").glob("*-verify.json"))
 
 
 def test_without_yes_the_graph_pauses_before_build(tmp_path):
