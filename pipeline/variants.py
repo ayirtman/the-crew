@@ -10,14 +10,22 @@ VARIANTS: dict[str, tuple[str, ...]] = {
     "v2p": ("intake", "evidence", "panel", "plan", "build", "verify", "repair"),
     "v2d": ("intake", "evidence", "panel", "plan", "design", "build", "verify", "repair"),
     "v2x": ("intake", "evidence", "panel", "plan", "design", "build_split", "verify", "repair"),
+    # the-crew.svg, compiled: all 14 stations. review/verify/security are programs, not models.
+    "crew": ("intake", "evidence", "panel", "plan", "architect", "ux", "ui",
+             "build_split", "review", "verify", "security", "repair", "ship", "analytics"),
 }
+
+# the red boxes: every verifier present in a variant re-runs, in this order, after repair
+VERIFIERS = ("review", "verify", "security")
 
 
 def expand(variant: str) -> tuple[str, ...]:
-    """Execution node list: repair implies a second verify right after it."""
+    """Execution node list: repair implies a second pass of every verifier in the variant."""
+    stages = VARIANTS[variant]
+    trio = [s for s in VERIFIERS if s in stages]
     nodes: list[str] = []
-    for s in VARIANTS[variant]:
+    for s in stages:
         nodes.append(s)
         if s == "repair":
-            nodes.append("verify2")
+            nodes.extend(f"{t}2" for t in trio)
     return tuple(nodes)

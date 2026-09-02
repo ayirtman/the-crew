@@ -389,6 +389,133 @@ class DesignSpec(DesignSpecDraft):
     parent: str
 
 
+
+# ---------------------------------------------------------------- TechSpec (Architect)
+
+
+class Entity(BaseModel):
+    model_config = STRICT
+    name: str
+    fields: list[str]
+
+    @field_validator("fields")
+    @classmethod
+    def _fields(cls, v):
+        return _unique(_count(v, "entity.fields", 1, 12), "entity.fields")
+
+
+def _app_file(v: str, field: str) -> str:
+    if not v.startswith(ALLOWED_DIRS):
+        raise ValueError(f"{field}: '{v}' must be under app/, lib/ or tests/")
+    return v
+
+
+class Interface(BaseModel):
+    """One FE<->BE contract: the file that implements it and the file that consumes it."""
+    model_config = STRICT
+    name: str
+    backend_file: str
+    frontend_file: str
+    shape: list[str]
+
+    @field_validator("backend_file", "frontend_file")
+    @classmethod
+    def _files(cls, v: str, info) -> str:
+        return _app_file(v, info.field_name)
+
+    @field_validator("shape")
+    @classmethod
+    def _shape(cls, v):
+        return _count(v, "interface.shape", 1, 8)
+
+
+class TechSpecDraft(BaseModel):
+    model_config = STRICT
+    entities: list[Entity]
+    interfaces: list[Interface]
+
+    @field_validator("entities")
+    @classmethod
+    def _entities(cls, v):
+        _count(v, "entities", 1, 8)
+        _unique([e.name for e in v], "entities")
+        return v
+
+    @field_validator("interfaces")
+    @classmethod
+    def _interfaces(cls, v):
+        _count(v, "interfaces", 1, 8)
+        _unique([i.name for i in v], "interfaces")
+        return v
+
+
+class TechSpec(TechSpecDraft):
+    schema_version: Literal["1"] = "1"
+    stage: Literal["architect"] = "architect"
+    run_id: str
+    parent: str
+
+
+# ---------------------------------------------------------------- UXFlows (UX Designer)
+
+
+class UxScreen(BaseModel):
+    model_config = STRICT
+    id: str
+    name: str
+    purpose: str
+
+    @field_validator("purpose")
+    @classmethod
+    def _purpose(cls, v: str) -> str:
+        return check_vague(v, "screen.purpose")
+
+
+class FlowStep(BaseModel):
+    model_config = STRICT
+    screen_id: str
+    action: str
+
+
+class UxFlow(BaseModel):
+    model_config = STRICT
+    name: str
+    covers_behaviors: list[int]
+    steps: list[FlowStep]
+
+    @field_validator("steps")
+    @classmethod
+    def _steps(cls, v):
+        return _count(v, "flow.steps", 1, 10)
+
+
+class UXFlowsDraft(BaseModel):
+    model_config = STRICT
+    screens: list[UxScreen]
+    flows: list[UxFlow]
+
+    @field_validator("screens")
+    @classmethod
+    def _screens(cls, v):
+        _count(v, "screens", 1, 4)
+        _unique([sc.id for sc in v], "screens")
+        return v
+
+    @field_validator("flows")
+    @classmethod
+    def _flows(cls, v):
+        _count(v, "flows", 1, 8)
+        _unique([f.name for f in v], "flows")
+        return v
+
+
+class UXFlows(UXFlowsDraft):
+    schema_version: Literal["1"] = "1"
+    stage: Literal["ux"] = "ux"
+    run_id: str
+    parent: str
+
+
 # ---------------------------------------------------------------- Build
 
 class Usage(BaseModel):
@@ -569,6 +696,91 @@ class ShipRecord(BaseModel):
         return v
 
 
+
+# ------------------------------------------------- Review / Security / Analytics (programs)
+
+ReviewFindingKind = Literal[
+    "locked_file", "template_file_deleted", "planned_file_missing", "scope_overlap", "stray_file",
+]
+
+
+class ReviewFinding(BaseModel):
+    model_config = STRICT
+    kind: ReviewFindingKind
+    path: str
+    detail: str
+
+
+class ReviewReport(BaseModel):
+    """Crew station 10. Written by a program reading the tree, never by a model."""
+    model_config = STRICT
+    schema_version: Literal["1"] = "1"
+    stage: Literal["review"] = "review"
+    run_id: str
+    parent: str
+    findings: list[ReviewFinding]
+    review_pass: bool = False
+
+    @model_validator(mode="after")
+    def _compute_pass(self) -> "ReviewReport":
+        object.__setattr__(self, "review_pass", not self.findings)
+        return self
+
+
+SecurityFindingKind = Literal["secret", "dangerous_api", "dependency_added", "audit_vulnerability"]
+
+
+class SecurityFinding(BaseModel):
+    model_config = STRICT
+    kind: SecurityFindingKind
+    path: str
+    detail: str
+
+
+class SecurityReport(BaseModel):
+    """Crew station 12. A program: secret scan, dangerous APIs, supply chain, npm audit."""
+    model_config = STRICT
+    schema_version: Literal["1"] = "1"
+    stage: Literal["security"] = "security"
+    run_id: str
+    parent: str
+    findings: list[SecurityFinding]
+    audit_ran: bool
+    notes: list[str] = []
+    security_pass: bool = False
+
+    @model_validator(mode="after")
+    def _compute_pass(self) -> "SecurityReport":
+        object.__setattr__(self, "security_pass", not self.findings)
+        return self
+
+
+class UrlCheck(BaseModel):
+    model_config = STRICT
+    url: str
+    status: int
+    response_ms: int
+    bytes: int
+
+
+class AnalyticsReport(BaseModel):
+    """Crew station 14. Watches what actually happened out there: the live URL, measured."""
+    model_config = STRICT
+    schema_version: Literal["1"] = "1"
+    stage: Literal["analytics"] = "analytics"
+    run_id: str
+    parent: str
+    url: str
+    checks: list[UrlCheck]
+    analytics_pass: bool = False
+
+    @model_validator(mode="after")
+    def _compute_pass(self) -> "AnalyticsReport":
+        object.__setattr__(self, "analytics_pass",
+                           bool(self.checks) and all(200 <= c.status < 300 for c in self.checks))
+        return self
+
+
 # ---------------------------------------------------------------- Failure and manifest
 
 FailureKind = Literal[
@@ -624,7 +836,8 @@ class Totals(BaseModel):
     output_tokens: int
 
 
-RunStatus = Literal["running", "success", "verify_failed", "failed", "aborted", "killed"]
+RunStatus = Literal["running", "success", "verify_failed", "failed", "aborted", "killed",
+                    "verified_unshipped"]
 
 
 class RunManifest(BaseModel):
