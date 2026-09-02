@@ -358,6 +358,7 @@ class DesignScreen(BaseModel):
     layout_description: str
     components_used: list[str]
     maps_behaviors: list[int]
+    covers_screen_ids: list[str] = []
 
     @field_validator("layout_description")
     @classmethod

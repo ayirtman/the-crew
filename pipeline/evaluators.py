@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 from pipeline.config import EvidenceRules, PanelRules
 from pipeline.contracts import (Brief, BuildResult, DesignSpec, EvidencePack, Plan, ReactionReport,
-                                SplitBuildResult, TestReport)
+                                SplitBuildResult, TechSpec, TestReport, UXFlows)
 from pipeline.idea import ParsedIdea, normalize
 from pipeline.stages.template import LOCKED_FILES
 
@@ -144,7 +144,53 @@ def evaluate_build(r: BuildResult, p: Plan | None) -> list[str]:
     return reasons
 
 
-def evaluate_design(d: DesignSpec, b: Brief, components: list[str]) -> list[str]:
+def evaluate_techspec(t: TechSpec, p: Plan) -> list[str]:
+    """The TechSpec is the contract the two parallel builders consume. Every interface must name
+    one real plan file per scope, and the Brief's api route must appear as an interface."""
+    from pipeline.stages.build_split import in_scope
+
+    reasons: list[str] = []
+    planned = {f.path for f in p.files}
+    for i in t.interfaces:
+        for side, path in (("backend", i.backend_file), ("frontend", i.frontend_file)):
+            if path not in planned:
+                reasons.append(f"interface '{i.name}': {side}_file '{path}' is not in the plan")
+            if not in_scope(path, side):
+                reasons.append(f"interface '{i.name}': {side}_file '{path}' is outside the {side} scope")
+    if not any(i.backend_file.startswith("app/api/") for i in t.interfaces):
+        reasons.append("no interface is backed by a route under app/api/; the Brief's api contract is unmapped")
+    return reasons
+
+
+def evaluate_uxflows(u: UXFlows, b: Brief) -> list[str]:
+    """Flows are the new signal: every behavior walked through real screens, no dead screens."""
+    reasons: list[str] = []
+    n = len(b.must_have_behaviors)
+    screen_ids = {sc.id for sc in u.screens}
+    covered: set[int] = set()
+    used: set[str] = set()
+    for f in u.flows:
+        for i in f.covers_behaviors:
+            if not 0 <= i < n:
+                reasons.append(f"flow '{f.name}': behavior index {i} out of range 0..{n - 1}")
+            else:
+                covered.add(i)
+        for st in f.steps:
+            if st.screen_id not in screen_ids:
+                reasons.append(f"flow '{f.name}': step references unknown screen '{st.screen_id}'")
+            else:
+                used.add(st.screen_id)
+    for i in range(n):
+        if i not in covered:
+            reasons.append(f"behavior {i} is covered by no flow: '{b.must_have_behaviors[i]}'")
+    for sc in u.screens:
+        if sc.id not in used:
+            reasons.append(f"screen '{sc.id}' appears in no flow")
+    return reasons
+
+
+def evaluate_design(d: DesignSpec, b: Brief, components: list[str],
+                    ux: UXFlows | None = None) -> list[str]:
     reasons: list[str] = []
     known = set(components)
     n = len(b.must_have_behaviors)
@@ -161,6 +207,17 @@ def evaluate_design(d: DesignSpec, b: Brief, components: list[str]) -> list[str]
     for i in range(n):
         if i not in mapped:
             reasons.append(f"behavior {i} is mapped to no screen: '{b.must_have_behaviors[i]}'")
+    if ux is not None:
+        ux_ids = {sc.id for sc in ux.screens}
+        covered: set[str] = set()
+        for sc in d.screens:
+            for sid in sc.covers_screen_ids:
+                if sid not in ux_ids:
+                    reasons.append(f"screen '{sc.name}' claims unknown ux screen '{sid}'")
+                else:
+                    covered.add(sid)
+        for sid in sorted(ux_ids - covered):
+            reasons.append(f"ux screen '{sid}' is not covered by any design screen")
     return reasons
 
 
