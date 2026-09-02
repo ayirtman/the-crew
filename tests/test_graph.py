@@ -185,3 +185,71 @@ def test_each_stage_logs_start_and_outcome(tmp_path, caplog):
     assert any(m.startswith("[plan] ok") for m in msgs)
     assert any(m.startswith("[verify] ok") for m in msgs)
     assert any(m.startswith("[run] success") for m in msgs)
+
+
+# ---------------------------------------------------------------- repair path
+
+
+def _deps_with_repair(tmp_path, first_verify_ok, repair_fixes):
+    """First verify fails or passes; the fake repair 'fixes' the app; verify2 reflects repair_fixes."""
+    deps = _deps(tmp_path, verify_ok=first_verify_ok)
+    calls = {"n": 0}
+    real_fake_verify = deps.verify
+
+    def verify_seq(**kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return real_fake_verify(**kw)
+        return _deps(tmp_path / "x2", verify_ok=repair_fixes).verify(**kw)
+
+    def fake_repair(*, app_dir, run_dir, report, build_result, parent_sha, cfg, runner=None,
+                    artifact_prefix="05-repair"):
+        from pipeline.contracts import BuildResult, Usage
+        from pipeline.stages import CallMeta
+        r = BuildResult(run_id=report.run_id, parent=parent_sha, app_dir=str(app_dir), builder="fake",
+                        model="fake", files_written=["app/page.tsx"], subtype="success", is_error=False,
+                        num_turns=2, duration_ms=3, total_cost_usd_reported=0.0, billed_usd=0.0,
+                        usage=Usage(), permission_denials=0, result_text="", exit_code=0, stage="repair")
+        return r, CallMeta(model="fake", usage=Usage(), cost_reported=0.0, wall_ms=3)
+
+    return G.Deps(cfg=deps.cfg, caller=deps.caller, build=deps.build, verify=verify_seq,
+                  template_dir=deps.template_dir, apps_dir=deps.apps_dir, runs_dir=deps.runs_dir,
+                  repair=fake_repair)
+
+
+def test_v1r_repair_fires_on_failure_and_second_verify_decides_success(tmp_path):
+    out = G.run(deps=_deps_with_repair(tmp_path, first_verify_ok=False, repair_fixes=True), variant="v1r",
+                idea_path=_idea(tmp_path), idea_id="01", run_id="rr1", yes=True)
+    run_dir = tmp_path / "runs" / "rr1"
+    assert out.status == "success"
+    assert (run_dir / "05-repair.json").exists() and (run_dir / "06-verify.json").exists()
+    m = _manifest(tmp_path, "rr1")
+    assert [s.stage for s in m.stages] == ["intake", "plan", "build", "verify", "repair", "verify2"]
+    rep = json.loads((run_dir / "05-repair.json").read_text())
+    assert rep["stage"] == "repair"
+
+
+def test_v1r_unrepaired_failure_stays_verify_failed(tmp_path):
+    out = G.run(deps=_deps_with_repair(tmp_path, first_verify_ok=False, repair_fixes=False), variant="v1r",
+                idea_path=_idea(tmp_path), idea_id="01", run_id="rr2", yes=True)
+    assert out.status == "verify_failed"
+    assert (tmp_path / "runs" / "rr2" / "06-verify.json").exists()
+
+
+def test_v2e_writes_evidence_between_brief_and_plan(tmp_path):
+    from pipeline.contracts import EvidencePackDraft
+    from tests.test_evidence import GOOD
+    caller = _caller()
+    caller.responses[EvidencePackDraft] = GOOD
+    deps = _deps_with_repair(tmp_path, first_verify_ok=True, repair_fixes=True)
+    deps = G.Deps(cfg=deps.cfg, caller=caller, build=deps.build, verify=deps.verify, repair=deps.repair,
+                  template_dir=deps.template_dir, apps_dir=deps.apps_dir, runs_dir=deps.runs_dir,
+                  fetch=lambda url: 200)
+    out = G.run(deps=deps, variant="v2e", idea_path=_idea(tmp_path), idea_id="01", run_id="e1", yes=True)
+    run_dir = tmp_path / "runs" / "e1"
+    assert out.status == "success"
+    ev = json.loads((run_dir / "02-evidence.json").read_text())
+    m = _manifest(tmp_path, "e1")
+    assert ev["parent"] == m.stages[0].artifact_sha256
+    plan = json.loads((run_dir / "03-plan.json").read_text())
+    assert plan["parent"] == m.stages[0].artifact_sha256  # plan still parents the brief

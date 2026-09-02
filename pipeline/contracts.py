@@ -213,6 +213,79 @@ class Plan(PlanDraft):
     constraints: list[str]
 
 
+# ---------------------------------------------------------------- Evidence
+
+
+def _http(v: str, field: str) -> str:
+    if not (v.startswith("http://") or v.startswith("https://")):
+        raise ValueError(f"{field}: '{v}' must be an http(s) url")
+    return v
+
+
+class EvidenceClaim(BaseModel):
+    model_config = STRICT
+    statement: str
+    source_url: str
+    source_title: str
+    retrieved: bool
+
+    @field_validator("statement")
+    @classmethod
+    def _stmt(cls, v: str) -> str:
+        if not 10 <= len(v) <= 300:
+            raise ValueError("statement: must be 10 to 300 chars")
+        return check_vague(v, "statement")
+
+    @field_validator("source_url")
+    @classmethod
+    def _url(cls, v: str) -> str:
+        return _http(v, "source_url")
+
+
+class Competitor(BaseModel):
+    model_config = STRICT
+    name: str
+    url: str
+    note: str
+
+    @field_validator("url")
+    @classmethod
+    def _url(cls, v: str) -> str:
+        return _http(v, "url")
+
+
+class EvidencePackDraft(BaseModel):
+    model_config = STRICT
+    claims: list[EvidenceClaim]
+    competitors: list[Competitor]
+    search_queries_used: list[str]
+
+    @field_validator("claims")
+    @classmethod
+    def _claims(cls, v):
+        return _count(v, "claims", 1, 20)
+
+    @field_validator("competitors")
+    @classmethod
+    def _comp(cls, v):
+        _count(v, "competitors", 0, 8)
+        _unique([c.name for c in v], "competitors")
+        return v
+
+    @field_validator("search_queries_used")
+    @classmethod
+    def _q(cls, v):
+        return _count(v, "search_queries_used", 1, 12)
+
+
+class EvidencePack(EvidencePackDraft):
+    schema_version: Literal["1"] = "1"
+    stage: Literal["evidence"] = "evidence"
+    run_id: str
+    parent: str
+    web_search_requests: int = 0
+
+
 # ---------------------------------------------------------------- Build
 
 class Usage(BaseModel):
@@ -226,7 +299,7 @@ class Usage(BaseModel):
 class BuildResult(BaseModel):
     model_config = STRICT
     schema_version: Literal["1"] = "1"
-    stage: Literal["build"] = "build"
+    stage: Literal["build", "repair"] = "build"
     run_id: str
     parent: str
     app_dir: str
@@ -249,10 +322,11 @@ class BuildResult(BaseModel):
     @classmethod
     def from_claude_json(cls, raw: dict, *, run_id: str, parent: str, app_dir: str, model: str,
                          billed: bool, files_written: list[str], exit_code: int,
-                         builder: str = "claude_code") -> "BuildResult":
+                         builder: str = "claude_code", stage: str = "build") -> "BuildResult":
         u = raw.get("usage") or {}
         cost = float(raw.get("total_cost_usd") or 0.0)
         return cls(
+            stage=stage,
             run_id=run_id, parent=parent, app_dir=app_dir, builder=builder, model=model,
             files_written=files_written,
             subtype=str(raw.get("subtype") or "unknown"),

@@ -25,6 +25,7 @@ class StageConfig(BaseModel):
     max_total_tokens: int | None = None
     max_cost_usd: float | None = None
     auth: str | None = None
+    tools: str = ""
     per_command_seconds: dict[str, float] = {}
 
 
@@ -42,11 +43,18 @@ class Price(BaseModel):
     cache_read: float
 
 
+class EvidenceRules(BaseModel):
+    model_config = FROZEN
+    min_claims: int = 3
+    min_domains: int = 2
+
+
 class Config(BaseModel):
     model_config = FROZEN
     stages: dict[str, StageConfig]
     run: RunConfig
     pricing: dict[str, Price]
+    evidence: EvidenceRules = EvidenceRules()
     root: Path
 
     def snapshot(self) -> dict:

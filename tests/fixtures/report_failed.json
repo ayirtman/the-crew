@@ -1,0 +1,99 @@
+{
+  "schema_version": "1",
+  "stage": "verify",
+  "run_id": "r1",
+  "parent": "sha256:build",
+  "commands": [
+    {
+      "name": "vitest",
+      "argv": [
+        "npx",
+        "vitest"
+      ],
+      "exit_code": 1,
+      "duration_ms": 10,
+      "passed": false,
+      "stdout_tail": "vitest out tail",
+      "stderr_tail": "vitest err tail",
+      "timed_out": false
+    },
+    {
+      "name": "eslint",
+      "argv": [
+        "npx",
+        "eslint"
+      ],
+      "exit_code": 0,
+      "duration_ms": 10,
+      "passed": true,
+      "stdout_tail": "eslint out tail",
+      "stderr_tail": "eslint err tail",
+      "timed_out": false
+    },
+    {
+      "name": "next_build",
+      "argv": [
+        "npx",
+        "next_build"
+      ],
+      "exit_code": 0,
+      "duration_ms": 10,
+      "passed": true,
+      "stdout_tail": "next_build out tail",
+      "stderr_tail": "next_build err tail",
+      "timed_out": false
+    },
+    {
+      "name": "tsc",
+      "argv": [
+        "npx",
+        "tsc"
+      ],
+      "exit_code": 1,
+      "duration_ms": 10,
+      "passed": false,
+      "stdout_tail": "tsc out tail",
+      "stderr_tail": "tsc err tail",
+      "timed_out": false
+    }
+  ],
+  "tests": [
+    {
+      "file": "tests/a.test.ts",
+      "full_name": "a fails hard",
+      "title": "fails hard",
+      "status": "failed",
+      "duration_ms": 3
+    },
+    {
+      "file": "tests/a.test.ts",
+      "full_name": "a passes",
+      "title": "passes",
+      "status": "passed",
+      "duration_ms": 1
+    }
+  ],
+  "tests_passed": 1,
+  "tests_total": 2,
+  "eslint_errors": 0,
+  "eslint_warnings": 0,
+  "min_tests_required": 3,
+  "criteria_coverage": [
+    {
+      "criterion_id": "AC1",
+      "test_name": "shows the thing",
+      "found": false,
+      "status": null
+    },
+    {
+      "criterion_id": "AC2",
+      "test_name": "fails hard",
+      "found": true,
+      "status": "failed"
+    }
+  ],
+  "asset_refs_total": 2,
+  "asset_refs_missing": [
+    "/assets/audio/es/dog.mp3"
+  ]
+}

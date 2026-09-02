@@ -24,6 +24,23 @@ max_total_tokens = 600000
 max_cost_usd = 1.50
 auth = "subscription"
 
+[stages.evidence]
+model = "haiku"
+auth = "subscription"
+tools = "WebSearch"
+max_turns = 12
+max_attempts = 2
+max_output_tokens = 2500
+max_seconds = 300
+
+[stages.repair]
+model = "haiku"
+auth = "subscription"
+max_turns = 30
+max_seconds = 600
+max_total_tokens = 400000
+max_cost_usd = 0.75
+
 [stages.verify]
 max_seconds = 600
 
@@ -32,6 +49,10 @@ tsc = 120
 eslint = 120
 vitest = 180
 next_build = 300
+
+[evidence]
+min_claims = 3
+min_domains = 2
 
 [run]
 max_cost_usd = 2.00

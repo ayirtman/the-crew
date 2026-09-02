@@ -11,7 +11,7 @@ from pipeline import graph as G
 from pipeline.config import load_config
 from pipeline.contracts import BriefDraft, BuildResult, PlanDraft, Usage
 from pipeline.llm import ClaudeCliCaller, MockCaller
-from pipeline.stages import CallMeta, build, verify
+from pipeline.stages import CallMeta, build, repair, verify
 
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures"
 MOCK_BRIEF_OVERRIDE: dict | None = None
@@ -55,7 +55,7 @@ def make_deps(root: Path, *, mock: bool) -> G.Deps:
     else:
         caller = ClaudeCliCaller()
         builder = real_build
-    return G.Deps(cfg=cfg, caller=caller, build=builder, verify=real_verify,
+    return G.Deps(cfg=cfg, caller=caller, build=builder, verify=real_verify, repair=repair.produce,
                  template_dir=root / "templates" / "next-app", apps_dir=root / "apps", runs_dir=root / "runs")
 
 

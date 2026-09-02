@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import re
 
-from pipeline.contracts import Brief, BuildResult, Plan, TestReport
+from urllib.parse import urlparse
+
+from pipeline.config import EvidenceRules
+from pipeline.contracts import Brief, BuildResult, EvidencePack, Plan, TestReport
 from pipeline.idea import ParsedIdea, normalize
 from pipeline.stages.template import LOCKED_FILES
 
@@ -73,6 +76,38 @@ def evaluate_plan(p: Plan, b: Brief) -> list[str]:
             reasons.append(f"behavior {i} has no acceptance criterion: '{b.must_have_behaviors[i]}'")
         elif covered[i] > 1:
             reasons.append(f"behavior {i} has {covered[i]} acceptance criteria, expected one")
+    return reasons
+
+
+DEAD_STATUSES = (404, 410)
+
+
+def evaluate_evidence(p: EvidencePack, rules: EvidenceRules, *, fetch) -> list[str]:
+    """Deterministic gates on researched evidence. `fetch(url) -> status_code` (may raise).
+
+    Liveness is the wiki's own rule: every claim carries a retrievable source. A 403 counts as
+    reachable (bot-blocked but alive); 404/410, DNS failures and timeouts are dead.
+    The search counter is the anti-fabrication oracle: zero searches means the model quoted
+    its memory, however plausible the URLs look."""
+    reasons: list[str] = []
+    if p.web_search_requests < 1:
+        reasons.append("no web search was actually performed; the evidence is the model's memory")
+    if len(p.claims) < rules.min_claims:
+        reasons.append(f"only {len(p.claims)} claims, need at least {rules.min_claims}")
+    domains = {urlparse(c.source_url).netloc for c in p.claims}
+    if len(domains) < rules.min_domains:
+        reasons.append(f"claims come from {len(domains)} domain(s), need at least {rules.min_domains}")
+    checked: dict[str, str | None] = {}
+    for c in p.claims:
+        if c.source_url not in checked:
+            try:
+                status = fetch(c.source_url)
+                checked[c.source_url] = f"dead ({status})" if status in DEAD_STATUSES else None
+            except Exception as e:
+                checked[c.source_url] = f"unreachable ({type(e).__name__})"
+        problem = checked[c.source_url]
+        if problem:
+            reasons.append(f"source {problem}: {c.source_url}")
     return reasons
 
 

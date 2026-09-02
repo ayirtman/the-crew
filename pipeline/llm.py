@@ -65,6 +65,7 @@ class RetryResult:
     duration_ms: int
     attempts: int
     rejections: list[list[str]]
+    raw: dict
 
 
 def call_with_retry(caller: StructuredCaller, *, system_file: Path, user: str, schema: type[T],
@@ -111,7 +112,7 @@ def call_with_retry(caller: StructuredCaller, *, system_file: Path, user: str, s
                       cache_read_input_tokens=usage.cache_read_input_tokens + r.usage.cache_read_input_tokens)
         return RetryResult(parsed=r.parsed, usage=usage, cost_reported=cost + r.cost_reported,
                            num_turns=turns + r.num_turns, duration_ms=ms + r.duration_ms, attempts=i,
-                           rejections=rejections)
+                           rejections=rejections, raw=r.raw)
     raise AssertionError("unreachable")
 
 
@@ -144,16 +145,20 @@ class ClaudeCliCaller:
         self.cwd = cwd
 
     def argv(self, *, system_file: Path, user: str, schema: type[BaseModel], stage: StageConfig) -> list[str]:
-        return [
+        a = [
             "claude", "-p", user,
             "--output-format", "json",
             "--json-schema", json.dumps(schema.model_json_schema()),
-            "--tools", "",
+            "--tools", stage.tools,
             "--model", stage.model or "haiku",
             "--max-turns", str(stage.max_turns or 2),
             "--safe-mode", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands",
             "--append-system-prompt-file", str(system_file),
         ]
+        if stage.tools:
+            # in -p mode an unapproved tool call is silently denied; pre-approve exactly the named set
+            a += ["--allowedTools", stage.tools]
+        return a
 
     def call(self, *, system_file: Path, user: str, schema: type[T], stage: StageConfig) -> CallResult:
         argv = self.argv(system_file=system_file, user=user, schema=schema, stage=stage)
@@ -204,4 +209,4 @@ class MockCaller:
         except ValidationError as e:
             raise SchemaInvalid(_validation_reasons(e)) from e
         return CallResult(parsed=parsed, usage=Usage(), cost_reported=0.0, num_turns=1, duration_ms=1,
-                          raw={"mock": True})
+                          raw={"mock": True, "modelUsage": {"mock": {"webSearchRequests": 1}}})

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pipeline.budget import BudgetExceeded
 from pipeline.config import Config
-from pipeline.contracts import Brief, BudgetSnapshot, Plan, PlanDraft
+from pipeline.contracts import Brief, BudgetSnapshot, EvidencePack, Plan, PlanDraft
 from pipeline import evaluators
 from pipeline.llm import StructuredCaller, call_with_retry
 from pipeline.stages import CallMeta
@@ -23,11 +23,16 @@ CONSTRAINTS = [
 ]
 
 
-def produce(*, brief: Brief, brief_sha: str, caller: StructuredCaller, cfg: Config) -> tuple[Plan, CallMeta]:
+def produce(*, brief: Brief, brief_sha: str, caller: StructuredCaller, cfg: Config,
+            evidence: EvidencePack | None = None) -> tuple[Plan, CallMeta]:
     stage = cfg.stages["plan"]
     brief_json = brief.model_dump_json(indent=2, exclude={"run_id", "parent", "stage", "schema_version"})
+    ev = ""
+    if evidence is not None:
+        ev = "\n\nEVIDENCE:\n" + evidence.model_dump_json(
+            indent=2, include={"claims", "competitors"})
     user = (
-        f"BRIEF:\n{brief_json}\n\nCONSTRAINTS:\n" + "\n".join(f"- {c}" for c in CONSTRAINTS)
+        f"BRIEF:\n{brief_json}{ev}\n\nCONSTRAINTS:\n" + "\n".join(f"- {c}" for c in CONSTRAINTS)
         + "\n\nProduce the Plan. must_have_behaviors are indexed from 0; give each exactly one acceptance criterion."
     )
     if stage.max_input_chars is not None and len(user) > stage.max_input_chars:

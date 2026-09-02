@@ -24,11 +24,11 @@ from pipeline import artifacts, evaluators
 from pipeline.artifacts import ArtifactError
 from pipeline.budget import BudgetExceeded, Ledger, canonical_model, cost_for
 from pipeline.config import Config
-from pipeline.contracts import (Brief, BuildResult, Plan, RunManifest, StageFailure, StageRecord,
-                                TestReport, Usage)
+from pipeline.contracts import (Brief, BuildResult, EvidencePack, Plan, RunManifest, StageFailure,
+                                StageRecord, TestReport, Usage)
 from pipeline.idea import parse_idea
 from pipeline.llm import CallerError, SchemaInvalid, StructuredCaller
-from pipeline.stages import CallMeta, intake, plan as plan_stage, template
+from pipeline.stages import CallMeta, evidence as evidence_stage, intake, plan as plan_stage, template
 from pipeline.stages.build import BuilderError
 from pipeline.variants import VARIANTS, expand
 
@@ -53,6 +53,8 @@ class Deps:
     template_dir: Path
     apps_dir: Path
     runs_dir: Path
+    repair: Callable[..., tuple[BuildResult, CallMeta]] | None = None
+    fetch: Callable[[str], int] | None = None
 
 
 class PipelineState(TypedDict, total=False):
@@ -192,7 +194,9 @@ class _Run:
             path, sha = artifacts.write(self.run_dir, seq, ARTIFACT[name], artifact)
             cost = meta.cost_reported if meta.cost_reported else cost_for(meta.usage, meta.model, self.deps.cfg)
             # subscription stages report a notional cost and bill nothing; api_key stages bill what they report
-            billed = cost if self.deps.cfg.stages[name].auth == "api_key" else 0.0
+            base = "verify" if name == "verify2" else name
+            stage_cfg = self.deps.cfg.stages.get(base)
+            billed = cost if (stage_cfg and stage_cfg.auth == "api_key") else 0.0
             wall = meta.wall_ms or int((time.monotonic() - t0) * 1000)
             rec.update(artifact_path=str(path), artifact_sha256=sha, model=canonical_model(meta.model),
                        input_tokens=meta.usage.input_tokens, output_tokens=meta.usage.output_tokens,
@@ -235,10 +239,23 @@ class _Run:
                                      idea_id=self.idea_id, caller=self.deps.caller, cfg=self.deps.cfg)
         return brief, meta, []
 
+    def _evidence(self, state: PipelineState):
+        brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
+        kw = {"fetch": self.deps.fetch} if self.deps.fetch else {}
+        pack, meta = evidence_stage.produce(brief=brief, parent_sha=state["brief_sha"],
+                                            caller=self.deps.caller, cfg=self.deps.cfg, **kw)
+        return pack, meta, []
+
+    def _load_evidence(self, state: PipelineState) -> EvidencePack | None:
+        if state.get("evidence_path"):
+            return artifacts.load(Path(state["evidence_path"]), EvidencePack,
+                                  expected_sha=state["evidence_sha"])
+        return None
+
     def _plan(self, state: PipelineState):
         brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
         p, meta = plan_stage.produce(brief=brief, brief_sha=state["brief_sha"], caller=self.deps.caller,
-                                     cfg=self.deps.cfg)
+                                     cfg=self.deps.cfg, evidence=self._load_evidence(state))
         return p, meta, []
 
     def _build(self, state: PipelineState):
@@ -272,6 +289,15 @@ class _Run:
 
     def _verify2(self, state: PipelineState):
         return self._verify_from(state, "repair")
+
+    def _repair(self, state: PipelineState):
+        report = artifacts.load(Path(state["report_path"]), TestReport, expected_sha=state["report_sha"])
+        build = artifacts.load(Path(state["build_path"]), BuildResult, expected_sha=state["build_sha"])
+        result, meta = self.deps.repair(
+            app_dir=Path(build.app_dir), run_dir=self.run_dir, report=report, build_result=build,
+            parent_sha=state["report_sha"], cfg=self.deps.cfg,
+            artifact_prefix=f"{self.seq['repair']:02d}-repair")
+        return result, meta, []
 
     def _eval_plan(self, p: Plan, state: PipelineState) -> list[str]:
         brief = artifacts.load(Path(state["brief_path"]), Brief)
@@ -323,8 +349,8 @@ def _route_for(name: str, nxt: str, nodes: tuple[str, ...]):
 def build_graph(run: _Run, variant: Variant, *, yes: bool):
     nodes = run.nodes
     producers = {
-        "intake": run._intake, "plan": run._plan, "build": run._build,
-        "verify": run._verify, "verify2": run._verify2,
+        "intake": run._intake, "evidence": run._evidence, "plan": run._plan, "build": run._build,
+        "verify": run._verify, "verify2": run._verify2, "repair": run._repair,
     }
     evals: dict[str, Callable] = {
         "intake": lambda b, s: evaluators.evaluate_brief(b, parse_idea(Path(s["idea_path"]).read_text())),
@@ -332,6 +358,9 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
         "build": run._eval_build,
         "verify": lambda r, s: evaluators.evaluate_report(r),
         "verify2": lambda r, s: evaluators.evaluate_report(r),
+        "repair": lambda r, s: evaluators.evaluate_build(r, None),
+        "evidence": lambda e, s: evaluators.evaluate_evidence(
+            e, run.deps.cfg.evidence, fetch=run.deps.fetch or evidence_stage.default_fetch),
     }
     g = StateGraph(PipelineState)
     for name in nodes:
