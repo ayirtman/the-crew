@@ -165,3 +165,15 @@ def test_duplicate_refs_counted_once_and_node_modules_ignored(tmp_path):
     (nm / "junk.js").write_text('"/assets/ghost.mp3"')
     rep = _produce(tmp_path, app_dir=app)
     assert rep.asset_refs_total == 1 and rep.asset_refs_missing == ["/assets/x.svg"]
+
+
+def test_eslint_failure_digest_lands_in_the_command_tail(tmp_path):
+    # eslint writes json to -o, so its stdout is empty; the report must carry the messages
+    # or the repair digest tells the fixer nothing but a count.
+    es_json = [{"filePath": "/abs/apps/r1/app/page.tsx", "errorCount": 1, "warningCount": 0,
+                "messages": [{"ruleId": "no-unused-vars", "severity": 2,
+                              "message": "'x' is defined but never used.", "line": 5, "column": 7}]}]
+    r = _produce(tmp_path, runner=FakeRunner(fail=("eslint",), eslint=es_json))
+    es = [c for c in r.commands if c.name == "eslint"][0]
+    assert not es.passed
+    assert "no-unused-vars" in es.stdout_tail and "app/page.tsx" in es.stdout_tail

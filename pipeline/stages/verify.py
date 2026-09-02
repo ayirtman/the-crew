@@ -90,6 +90,24 @@ def _parse_vitest(path: Path, app_dir: Path) -> tuple[list[TestCaseResult], int,
             int(data.get("numFailedTests") or 0))
 
 
+def _eslint_digest(path: Path, limit: int = 20) -> str:
+    """eslint's -o flag swallows stdout, so the report rebuilds the error lines from the json;
+    without this the repair digest can only say a count, and the fixer flies blind."""
+    if not path.exists():
+        return ""
+    lines: list[str] = []
+    for f in json.loads(path.read_text()):
+        for m in f.get("messages", []):
+            if m.get("severity") == 2:
+                lines.append(f"{f.get('filePath', '?')}:{m.get('line', 0)}:{m.get('column', 0)} "
+                             f"{m.get('ruleId') or ''} {m.get('message', '')}")
+    extra = len(lines) - limit
+    out = lines[:limit]
+    if extra > 0:
+        out.append(f"... and {extra} more errors")
+    return "\n".join(out)
+
+
 def _parse_eslint(path: Path) -> tuple[int, int]:
     if not path.exists():
         return 0, 0
@@ -127,6 +145,10 @@ def produce(*, app_dir: Path, run_dir: Path, brief: Brief, plan: Plan | None, bu
 
     tests, passed, total, failed = _parse_vitest(run_dir / "vitest.json", app_dir)
     errors, warnings = _parse_eslint(run_dir / "eslint.json")
+    if errors:
+        digest = _eslint_digest(run_dir / "eslint.json")
+        if digest:
+            commands[1] = commands[1].model_copy(update={"stdout_tail": digest})
 
     # vitest exit code is not trusted on its own: no tests, or any failed test, is a fail.
     vt = commands[0]
