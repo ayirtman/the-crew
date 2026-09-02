@@ -49,12 +49,19 @@ class EvidenceRules(BaseModel):
     min_domains: int = 2
 
 
+class PanelRules(BaseModel):
+    model_config = FROZEN
+    min_mean_desirability: float = 2.5
+    kill_feasibility_at_or_below: int = 1
+
+
 class Config(BaseModel):
     model_config = FROZEN
     stages: dict[str, StageConfig]
     run: RunConfig
     pricing: dict[str, Price]
     evidence: EvidenceRules = EvidenceRules()
+    panel: PanelRules = PanelRules()
     root: Path
 
     def snapshot(self) -> dict:

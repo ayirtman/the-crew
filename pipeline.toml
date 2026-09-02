@@ -33,6 +33,15 @@ max_attempts = 2
 max_output_tokens = 2500
 max_seconds = 300
 
+[stages.panel]
+model = "haiku"
+auth = "subscription"
+max_turns = 4
+max_attempts = 2
+max_output_tokens = 1200
+max_input_chars = 30000
+max_seconds = 150
+
 [stages.repair]
 model = "haiku"
 auth = "subscription"
@@ -53,6 +62,10 @@ next_build = 300
 [evidence]
 min_claims = 3
 min_domains = 2
+
+[panel]
+min_mean_desirability = 2.5
+kill_feasibility_at_or_below = 1
 
 [run]
 max_cost_usd = 2.00

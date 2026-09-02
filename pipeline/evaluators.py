@@ -9,8 +9,8 @@ import re
 
 from urllib.parse import urlparse
 
-from pipeline.config import EvidenceRules
-from pipeline.contracts import Brief, BuildResult, EvidencePack, Plan, TestReport
+from pipeline.config import EvidenceRules, PanelRules
+from pipeline.contracts import Brief, BuildResult, EvidencePack, Plan, ReactionReport, TestReport
 from pipeline.idea import ParsedIdea, normalize
 from pipeline.stages.template import LOCKED_FILES
 
@@ -108,6 +108,20 @@ def evaluate_evidence(p: EvidencePack, rules: EvidenceRules, *, fetch) -> list[s
         problem = checked[c.source_url]
         if problem:
             reasons.append(f"source {problem}: {c.source_url}")
+    return reasons
+
+
+def evaluate_reaction(rep: ReactionReport, rules: PanelRules) -> list[str]:
+    """Re-runs the deterministic arbiter and rejects a report whose verdict does not match.
+    The model's scores are inputs; the kill decision must be the rule's, never the model's."""
+    from pipeline.stages.panel import arbitrate
+
+    reasons: list[str] = []
+    means, kill, kill_reasons = arbitrate(rep.reactions, rules)
+    if rep.means != means:
+        reasons.append(f"means tampered: recorded {rep.means}, recomputed {means}")
+    if rep.kill != kill or rep.kill_reasons != kill_reasons:
+        reasons.append(f"kill verdict tampered: recorded kill={rep.kill}, the rule says kill={kill}")
     return reasons
 
 

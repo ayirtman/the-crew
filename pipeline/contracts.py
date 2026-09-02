@@ -286,6 +286,69 @@ class EvidencePack(EvidencePackDraft):
     web_search_requests: int = 0
 
 
+# ---------------------------------------------------------------- Panel
+
+Persona = Literal["target_user", "skeptic", "operator"]
+
+
+class PersonaScores(BaseModel):
+    model_config = STRICT
+    desirability: int
+    clarity: int
+    feasibility: int
+
+    @model_validator(mode="after")
+    def _bounds(self) -> "PersonaScores":
+        for k in ("desirability", "clarity", "feasibility"):
+            v = getattr(self, k)
+            if not 0 <= v <= 5:
+                raise ValueError(f"{k}: {v} outside 0..5")
+        return self
+
+
+class MeanScores(BaseModel):
+    model_config = STRICT
+    desirability: float
+    clarity: float
+    feasibility: float
+
+
+class PersonaReactionDraft(BaseModel):
+    model_config = STRICT
+    scores: PersonaScores
+    objections: list[str]
+    one_change: str
+
+    @field_validator("objections")
+    @classmethod
+    def _obj(cls, v):
+        return _unique(_count(v, "objections", 2, 6), "objections")
+
+
+class PersonaReaction(PersonaReactionDraft):
+    persona: Persona
+
+
+class ReactionReport(BaseModel):
+    model_config = STRICT
+    schema_version: Literal["1"] = "1"
+    stage: Literal["panel"] = "panel"
+    run_id: str
+    parent: str
+    reactions: list[PersonaReaction]
+    means: MeanScores
+    kill: bool
+    kill_reasons: list[str]
+
+    @field_validator("reactions")
+    @classmethod
+    def _three(cls, v):
+        personas = [r.persona for r in v]
+        if len(v) != 3 or len(set(personas)) != 3:
+            raise ValueError(f"reactions: need three distinct personas, got {personas}")
+        return v
+
+
 # ---------------------------------------------------------------- Build
 
 class Usage(BaseModel):

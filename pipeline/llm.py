@@ -203,7 +203,13 @@ class MockCaller:
         self.calls: list[dict] = []
 
     def call(self, *, system_file: Path, user: str, schema: type[T], stage: StageConfig) -> CallResult:
-        self.calls.append({"system_file": system_file, "user": user, "schema": schema})
+        text = ""
+        try:
+            text = Path(system_file).read_text()
+        except OSError:
+            pass
+        self.calls.append({"system_file": system_file, "user": user, "schema": schema,
+                           "system_prompt_text": text})
         try:
             parsed = schema.model_validate(self.responses[schema])
         except ValidationError as e:

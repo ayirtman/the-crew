@@ -253,3 +253,26 @@ def test_v2e_writes_evidence_between_brief_and_plan(tmp_path):
     assert ev["parent"] == m.stages[0].artifact_sha256
     plan = json.loads((run_dir / "03-plan.json").read_text())
     assert plan["parent"] == m.stages[0].artifact_sha256  # plan still parents the brief
+
+
+def test_v2p_kill_ends_run_as_killed_not_failed(tmp_path):
+    from pipeline.contracts import EvidencePackDraft, PersonaReactionDraft
+    from tests.test_evidence import GOOD
+    caller = _caller()
+    caller.responses[EvidencePackDraft] = GOOD
+    caller.responses[PersonaReactionDraft] = {
+        "scores": {"desirability": 0, "clarity": 2, "feasibility": 1},
+        "objections": ["nobody wants this", "cannot be built in one page"],
+        "one_change": "different idea"}
+    d = _deps_with_repair(tmp_path, first_verify_ok=True, repair_fixes=True)
+    deps = G.Deps(cfg=d.cfg, caller=caller, build=d.build, verify=d.verify, repair=d.repair,
+                  template_dir=d.template_dir, apps_dir=d.apps_dir, runs_dir=d.runs_dir,
+                  fetch=lambda url: 200)
+    out = G.run(deps=deps, variant="v2p", idea_path=_idea(tmp_path), idea_id="01", run_id="k1", yes=True)
+    run_dir = tmp_path / "runs" / "k1"
+    assert out.status == "killed"
+    m = _manifest(tmp_path, "k1")
+    assert m.status == "killed" and m.failed_stage is None
+    assert (run_dir / "03-panel.json").exists()
+    assert not list(run_dir.glob("*-plan.json")) and not list(run_dir.glob("*-build.json"))
+    assert not list(run_dir.glob("*-failure.json"))

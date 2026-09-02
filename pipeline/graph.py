@@ -28,7 +28,8 @@ from pipeline.contracts import (Brief, BuildResult, EvidencePack, Plan, RunManif
                                 StageRecord, TestReport, Usage)
 from pipeline.idea import parse_idea
 from pipeline.llm import CallerError, SchemaInvalid, StructuredCaller
-from pipeline.stages import CallMeta, evidence as evidence_stage, intake, plan as plan_stage, template
+from pipeline.stages import (CallMeta, evidence as evidence_stage, intake, panel as panel_stage,
+                             plan as plan_stage, template)
 from pipeline.stages.build import BuilderError
 from pipeline.variants import VARIANTS, expand
 
@@ -246,6 +247,14 @@ class _Run:
                                             caller=self.deps.caller, cfg=self.deps.cfg, **kw)
         return pack, meta, []
 
+    def _panel(self, state: PipelineState):
+        brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
+        ev = self._load_evidence(state)
+        parent = state["evidence_sha"] if state.get("evidence_path") else state["brief_sha"]
+        rep, meta = panel_stage.produce(brief=brief, evidence=ev, parent_sha=parent,
+                                        caller=self.deps.caller, cfg=self.deps.cfg)
+        return rep, meta, []
+
     def _load_evidence(self, state: PipelineState) -> EvidencePack | None:
         if state.get("evidence_path"):
             return artifacts.load(Path(state["evidence_path"]), EvidencePack,
@@ -349,8 +358,8 @@ def _route_for(name: str, nxt: str, nodes: tuple[str, ...]):
 def build_graph(run: _Run, variant: Variant, *, yes: bool):
     nodes = run.nodes
     producers = {
-        "intake": run._intake, "evidence": run._evidence, "plan": run._plan, "build": run._build,
-        "verify": run._verify, "verify2": run._verify2, "repair": run._repair,
+        "intake": run._intake, "evidence": run._evidence, "panel": run._panel, "plan": run._plan,
+        "build": run._build, "verify": run._verify, "verify2": run._verify2, "repair": run._repair,
     }
     evals: dict[str, Callable] = {
         "intake": lambda b, s: evaluators.evaluate_brief(b, parse_idea(Path(s["idea_path"]).read_text())),
@@ -361,6 +370,7 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
         "repair": lambda r, s: evaluators.evaluate_build(r, None),
         "evidence": lambda e, s: evaluators.evaluate_evidence(
             e, run.deps.cfg.evidence, fetch=run.deps.fetch or evidence_stage.default_fetch),
+        "panel": lambda r, s: evaluators.evaluate_reaction(r, run.deps.cfg.panel),
     }
     g = StateGraph(PipelineState)
     for name in nodes:
