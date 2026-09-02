@@ -84,3 +84,9 @@ def test_login_error_is_surfaced_not_automated(tmp_path, capsys):
     r = FakeRunner(stdout="", returncode=1, stderr="Error: No existing credentials found. Please run `vercel login`")
     assert ship.ship(root=root, run_id="v1-01-x", runner=r) != 0
     assert "vercel login" in capsys.readouterr().out
+
+
+def test_verified_unshipped_run_can_be_shipped_manually(tmp_path):
+    # a crew run whose publish pause was declined (or hit EOF in a background run) stays shippable
+    root = _run_dir(tmp_path, status="verified_unshipped")
+    assert ship.ship(root=root, run_id="v1-01-x", runner=FakeRunner()) == 0

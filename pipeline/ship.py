@@ -18,8 +18,8 @@ def ship(*, root: Path, run_id: str, runner=subprocess.run) -> int:
     run_dir = root / "runs" / run_id
     manifest_path = run_dir / "00-manifest.json"
     m = RunManifest.model_validate_json(manifest_path.read_text())
-    if m.status != "success":
-        print(f"refusing to ship: run status is '{m.status}', not success")
+    if m.status not in ("success", "verified_unshipped"):
+        print(f"refusing to ship: run status is '{m.status}', not success or verified_unshipped")
         return 1
     verifies = sorted(run_dir.glob("*-verify.json"))
     import json
