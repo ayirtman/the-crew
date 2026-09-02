@@ -42,6 +42,15 @@ max_output_tokens = 1200
 max_input_chars = 30000
 max_seconds = 150
 
+[stages.design]
+model = "haiku"
+auth = "subscription"
+max_turns = 4
+max_attempts = 2
+max_output_tokens = 2500
+max_input_chars = 30000
+max_seconds = 180
+
 [stages.repair]
 model = "haiku"
 auth = "subscription"

@@ -25,7 +25,7 @@ def real_build(**kw):
     return build.produce(**kw)
 
 
-def fake_build(*, app_dir, run_dir, brief, plan, parent_sha, cfg, runner=None, artifact_prefix="03-build"):
+def fake_build(*, app_dir, run_dir, brief, plan, parent_sha, cfg, runner=None, design=None, artifact_prefix="03-build"):
     """Drops the known-good fixture app into the app dir. Zero tokens."""
     src = FIXTURES / "app_good"
     written = []

@@ -10,7 +10,8 @@ import re
 from urllib.parse import urlparse
 
 from pipeline.config import EvidenceRules, PanelRules
-from pipeline.contracts import Brief, BuildResult, EvidencePack, Plan, ReactionReport, TestReport
+from pipeline.contracts import (Brief, BuildResult, DesignSpec, EvidencePack, Plan, ReactionReport,
+                                TestReport)
 from pipeline.idea import ParsedIdea, normalize
 from pipeline.stages.template import LOCKED_FILES
 
@@ -140,6 +141,26 @@ def evaluate_build(r: BuildResult, p: Plan | None) -> list[str]:
         for tf in sorted({c.test_file for c in p.acceptance_criteria}):
             if tf not in written:
                 reasons.append(f"planned test file not written: {tf}")
+    return reasons
+
+
+def evaluate_design(d: DesignSpec, b: Brief, components: list[str]) -> list[str]:
+    reasons: list[str] = []
+    known = set(components)
+    n = len(b.must_have_behaviors)
+    mapped: set[int] = set()
+    for sc in d.screens:
+        for c in sc.components_used:
+            if c not in known:
+                reasons.append(f"screen '{sc.name}' uses unknown component '{c}'")
+        for i in sc.maps_behaviors:
+            if not 0 <= i < n:
+                reasons.append(f"screen '{sc.name}': behavior index {i} out of range 0..{n - 1}")
+            else:
+                mapped.add(i)
+    for i in range(n):
+        if i not in mapped:
+            reasons.append(f"behavior {i} is mapped to no screen: '{b.must_have_behaviors[i]}'")
     return reasons
 
 

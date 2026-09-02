@@ -24,12 +24,12 @@ from pipeline import artifacts, evaluators
 from pipeline.artifacts import ArtifactError
 from pipeline.budget import BudgetExceeded, Ledger, canonical_model, cost_for
 from pipeline.config import Config
-from pipeline.contracts import (Brief, BuildResult, EvidencePack, Plan, RunManifest, StageFailure,
-                                StageRecord, TestReport, Usage)
+from pipeline.contracts import (Brief, BuildResult, DesignSpec, EvidencePack, Plan, RunManifest,
+                                StageFailure, StageRecord, TestReport, Usage)
 from pipeline.idea import parse_idea
 from pipeline.llm import CallerError, SchemaInvalid, StructuredCaller
-from pipeline.stages import (CallMeta, evidence as evidence_stage, intake, panel as panel_stage,
-                             plan as plan_stage, template)
+from pipeline.stages import (CallMeta, design as design_stage, evidence as evidence_stage, intake,
+                             panel as panel_stage, plan as plan_stage, template)
 from pipeline.stages.build import BuilderError
 from pipeline.variants import VARIANTS, expand
 
@@ -267,6 +267,14 @@ class _Run:
                                      cfg=self.deps.cfg, evidence=self._load_evidence(state))
         return p, meta, []
 
+    def _design(self, state: PipelineState):
+        brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
+        spec, meta = design_stage.produce(
+            brief=brief, evidence=self._load_evidence(state), parent_sha=state["plan_sha"],
+            components=design_stage.load_components(self.deps.template_dir),
+            caller=self.deps.caller, cfg=self.deps.cfg)
+        return spec, meta, []
+
     def _build(self, state: PipelineState):
         brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
         p = None
@@ -275,9 +283,13 @@ class _Run:
             p = artifacts.load(Path(state["plan_path"]), Plan, expected_sha=state["plan_sha"],
                                expected_parent=state["brief_sha"])
             parent = state["plan_sha"]
+        d = None
+        if state.get("design_path"):
+            d = artifacts.load(Path(state["design_path"]), DesignSpec, expected_sha=state["design_sha"])
+            parent = state["design_sha"]
         app_dir = template.materialize(self.deps.template_dir, self.deps.apps_dir, self.run_id)
         result, meta = self.deps.build(app_dir=app_dir, run_dir=self.run_dir, brief=brief, plan=p,
-                                       parent_sha=parent, cfg=self.deps.cfg,
+                                       parent_sha=parent, cfg=self.deps.cfg, design=d,
                                        artifact_prefix=f"{self.seq['build']:02d}-build")
         return result, meta, []
 
@@ -359,7 +371,8 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
     nodes = run.nodes
     producers = {
         "intake": run._intake, "evidence": run._evidence, "panel": run._panel, "plan": run._plan,
-        "build": run._build, "verify": run._verify, "verify2": run._verify2, "repair": run._repair,
+        "design": run._design, "build": run._build, "verify": run._verify, "verify2": run._verify2,
+        "repair": run._repair,
     }
     evals: dict[str, Callable] = {
         "intake": lambda b, s: evaluators.evaluate_brief(b, parse_idea(Path(s["idea_path"]).read_text())),
@@ -371,6 +384,9 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
         "evidence": lambda e, s: evaluators.evaluate_evidence(
             e, run.deps.cfg.evidence, fetch=run.deps.fetch or evidence_stage.default_fetch),
         "panel": lambda r, s: evaluators.evaluate_reaction(r, run.deps.cfg.panel),
+        "design": lambda d, s: evaluators.evaluate_design(
+            d, artifacts.load(Path(s["brief_path"]), Brief),
+            design_stage.load_components(run.deps.template_dir)),
     }
     g = StateGraph(PipelineState)
     for name in nodes:

@@ -47,3 +47,13 @@ a {
     color-scheme: dark;
   }
 }
+
+/* ---- design corpus (design/corpus.md) — locked component classes ---- */
+.btn-primary { min-height: 64px; width: 100%; font-size: 20px; border: none; border-radius: 16px; background: #4f46e5; color: #fff; cursor: pointer; }
+.btn-ghost { min-height: 48px; font-size: 16px; border: 2px solid #cbd5e1; border-radius: 12px; background: transparent; cursor: pointer; }
+.card { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.field input { min-height: 56px; font-size: 18px; border: 2px solid #cbd5e1; border-radius: 12px; padding: 0 16px; }
+.result-line { font-size: 24px; font-weight: 600; min-height: 32px; }
+.image-tile { min-width: 160px; min-height: 160px; border-radius: 16px; border: 4px solid transparent; overflow: hidden; cursor: pointer; background: #fff; }
+.image-tile img { width: 100%; height: 100%; object-fit: contain; }

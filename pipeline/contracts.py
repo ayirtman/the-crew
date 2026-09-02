@@ -349,6 +349,46 @@ class ReactionReport(BaseModel):
         return v
 
 
+# ---------------------------------------------------------------- Design
+
+
+class DesignScreen(BaseModel):
+    model_config = STRICT
+    name: str
+    layout_description: str
+    components_used: list[str]
+    maps_behaviors: list[int]
+
+    @field_validator("layout_description")
+    @classmethod
+    def _layout(cls, v: str) -> str:
+        return check_vague(v, "layout_description")
+
+    @field_validator("components_used")
+    @classmethod
+    def _comp(cls, v):
+        return _unique(_count(v, "components_used", 1, 8), "components_used")
+
+
+class DesignSpecDraft(BaseModel):
+    model_config = STRICT
+    screens: list[DesignScreen]
+
+    @field_validator("screens")
+    @classmethod
+    def _screens(cls, v):
+        _count(v, "screens", 1, 4)
+        _unique([sc.name for sc in v], "screens")
+        return v
+
+
+class DesignSpec(DesignSpecDraft):
+    schema_version: Literal["1"] = "1"
+    stage: Literal["design"] = "design"
+    run_id: str
+    parent: str
+
+
 # ---------------------------------------------------------------- Build
 
 class Usage(BaseModel):

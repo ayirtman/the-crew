@@ -30,7 +30,7 @@ def _deps(tmp_path, caller=None, cfg=None, verify_ok=True, build_files=None):
     files = build_files if build_files is not None else [
         "app/page.tsx", "app/api/count/route.ts", "lib/count.ts", "tests/count.test.ts"]
 
-    def fake_build(*, app_dir, run_dir, brief, plan, parent_sha, cfg, runner=None, artifact_prefix="03-build"):
+    def fake_build(*, app_dir, run_dir, brief, plan, parent_sha, cfg, runner=None, design=None, artifact_prefix="03-build"):
         for f in files:
             p = Path(app_dir) / f
             p.parent.mkdir(parents=True, exist_ok=True)

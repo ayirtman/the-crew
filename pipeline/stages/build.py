@@ -16,7 +16,7 @@ from typing import Callable
 
 from pipeline.budget import BudgetExceeded
 from pipeline.config import Config
-from pipeline.contracts import Brief, BudgetSnapshot, BuildResult, Plan
+from pipeline.contracts import Brief, BudgetSnapshot, BuildResult, DesignSpec, Plan
 from pipeline.llm import STRIP_ENV
 from pipeline.stages import CallMeta
 from pipeline.stages.template import diff_files, tree_hashes
@@ -37,15 +37,20 @@ def _env() -> dict[str, str]:
     return env
 
 
-def task_prompt(brief: Brief, plan: Plan | None) -> str:
+def task_prompt(brief: Brief, plan: Plan | None, design: DesignSpec | None = None) -> str:
     drop = {"run_id", "parent", "stage", "schema_version"}
     brief_json = brief.model_dump_json(indent=2, exclude=drop)
     if plan is None:
-        tpl = (PROMPTS / "build_task_v0.md").read_text()
-        return tpl.replace("{{BRIEF}}", brief_json)
-    tpl = (PROMPTS / "build_task_v1.md").read_text()
-    plan_json = plan.model_dump_json(indent=2, exclude=drop)
-    return tpl.replace("{{BRIEF}}", brief_json).replace("{{PLAN}}", plan_json)
+        prompt = (PROMPTS / "build_task_v0.md").read_text().replace("{{BRIEF}}", brief_json)
+    else:
+        plan_json = plan.model_dump_json(indent=2, exclude=drop)
+        prompt = ((PROMPTS / "build_task_v1.md").read_text()
+                  .replace("{{BRIEF}}", brief_json).replace("{{PLAN}}", plan_json))
+    if design is not None:
+        prompt += ("\n\nDESIGN:\n" + design.model_dump_json(indent=2, exclude=drop)
+                   + "\nUse only the corpus component classes named here; they exist in app/globals.css "
+                     "and are described in design/corpus.md. Do not invent new component styles.")
+    return prompt
 
 
 def argv(prompt: str, cfg: Config) -> list[str]:
@@ -66,13 +71,13 @@ def argv(prompt: str, cfg: Config) -> list[str]:
 
 
 def produce(*, app_dir: Path, run_dir: Path, brief: Brief, plan: Plan | None, parent_sha: str,
-            cfg: Config, runner: Runner = subprocess.run,
+            cfg: Config, runner: Runner = subprocess.run, design: DesignSpec | None = None,
             artifact_prefix: str = "03-build") -> tuple[BuildResult, CallMeta]:
     stage = cfg.stages["build"]
     app_dir, run_dir = Path(app_dir), Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     before = tree_hashes(app_dir)
-    prompt = task_prompt(brief, plan)
+    prompt = task_prompt(brief, plan, design=design)
     (run_dir / f"{artifact_prefix}.prompt.md").write_text(prompt)
     t0 = time.monotonic()
     try:
