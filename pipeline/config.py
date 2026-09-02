@@ -26,6 +26,7 @@ class StageConfig(BaseModel):
     max_cost_usd: float | None = None
     auth: str | None = None
     tools: str = ""
+    retry_model: str | None = None
     per_command_seconds: dict[str, float] = {}
 
 

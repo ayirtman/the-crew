@@ -172,3 +172,24 @@ def test_nonzero_exit_without_structured_output_is_still_an_error():
     with pytest.raises(CallerError, match="max_turns|exited|reported"):
         ClaudeCliCaller(runner=FakeRunner(json.dumps(raw), returncode=1)).call(
             system_file=Path("x.md"), user="i", schema=BriefDraft, stage=CFG.stages["intake"])
+
+
+def test_retry_escalates_to_retry_model_on_second_attempt():
+    good = json.loads((FIX / "brief_good.json").read_text())
+
+    class RecordingCaller(FlakyCaller):
+        def __init__(self):
+            super().__init__(1, good)
+            self.stages = []
+
+        def call(self, *, system_file, user, schema, stage):
+            self.stages.append(stage.model)
+            return super().call(system_file=system_file, user=user, schema=schema, stage=stage)
+
+    c = RecordingCaller()
+    stage = CFG.stages["intake"]
+    assert stage.retry_model == "sonnet"
+    res = call_with_retry(c, system_file=Path("x.md"), user="idea", schema=BriefDraft,
+                          stage=stage, attempts=2)
+    assert c.stages == [stage.model, "sonnet"]
+    assert res.attempts == 2

@@ -82,8 +82,12 @@ def call_with_retry(caller: StructuredCaller, *, system_file: Path, user: str, s
     rejections: list[list[str]] = []
     prompt = user
     for i in range(1, max(1, attempts) + 1):
+        attempt_stage = stage
+        if i > 1 and stage.retry_model:
+            # the cheap model failed with the reasons in hand; escalate the retry
+            attempt_stage = stage.model_copy(update={"model": stage.retry_model})
         try:
-            r = caller.call(system_file=system_file, user=prompt, schema=schema, stage=stage)
+            r = caller.call(system_file=system_file, user=prompt, schema=schema, stage=attempt_stage)
             reasons = check(r.parsed) if check else []
             if reasons:
                 raise SchemaInvalid(reasons, dict(r.raw, total_cost_usd=r.cost_reported, num_turns=r.num_turns,

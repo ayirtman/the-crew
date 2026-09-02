@@ -1,5 +1,6 @@
 [stages.intake]
 model = "haiku"
+retry_model = "sonnet"
 auth = "subscription"
 max_turns = 4
 max_attempts = 2
@@ -9,6 +10,7 @@ max_seconds = 360
 
 [stages.plan]
 model = "haiku"
+retry_model = "sonnet"
 auth = "subscription"
 max_turns = 4
 max_attempts = 2
