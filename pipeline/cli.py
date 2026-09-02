@@ -29,6 +29,10 @@ def _parser() -> argparse.ArgumentParser:
     v = sub.add_parser("verify-only", help="re-run Verify on an existing run's app", parents=[common])
     v.add_argument("--run", required=True)
 
+    sh = sub.add_parser("ship", help="deploy a verify-passing run's app to Vercel (manual, never automatic)",
+                        parents=[common])
+    sh.add_argument("--run", required=True)
+
     sub.add_parser("template-check", help="npm ci the template if needed", parents=[common])
     return p
 
@@ -56,6 +60,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "verify-only":
         from pipeline.runner import verify_only
         return verify_only(root=root, run_id=args.run)
+    if args.cmd == "ship":
+        from pipeline.ship import ship
+        return ship(root=root, run_id=args.run)
     if args.cmd == "template-check":
         from pipeline.stages.template import ensure_node_modules
         ensure_node_modules(root / "templates" / "next-app")

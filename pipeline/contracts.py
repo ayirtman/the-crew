@@ -548,6 +548,27 @@ class TestReport(BaseModel):
         return self
 
 
+# ---------------------------------------------------------------- Ship
+
+
+class ShipRecord(BaseModel):
+    model_config = STRICT
+    schema_version: Literal["1"] = "1"
+    stage: Literal["ship"] = "ship"
+    run_id: str
+    parent: str
+    url: str
+    deployed_at: str
+    vercel_output_tail: str
+
+    @field_validator("url")
+    @classmethod
+    def _url(cls, v: str) -> str:
+        if not v.startswith("https://"):
+            raise ValueError(f"url: '{v}' must be https")
+        return v
+
+
 # ---------------------------------------------------------------- Failure and manifest
 
 FailureKind = Literal[

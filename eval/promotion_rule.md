@@ -15,3 +15,9 @@ Written before the first measured run. Frozen at tag `eval-frozen`. The run eith
 **If v1 passes,** v1 becomes the floor that the next added stage has to beat.
 
 **What does not count:** dev runs, runs with a different Build model between graphs, runs where the corpus or the rubric changed after tagging, or any run not in `eval/results/`.
+
+## The ladder
+
+There is always exactly one champion variant and at most one challenger. A challenger differs from the champion by exactly one variable (one added or changed stage), never two. The challenger runs the full frozen corpus and is promoted only if it clears the three-part rule above against the current champion. A `killed` run counts as a verify non-pass and scores 0 human points; the panel's kills are part of the challenger's record, not excused from it. On promotion the challenger becomes champion and the ladder moves one rung. On failure the variable is removed and the result recorded here; the champion stands.
+
+Planned rung order: v1 -> v1r (repair) -> v2e (evidence) -> v2p (panel) -> v2d (design) -> v2x (split build). The ladder is a process, not code; nothing enforces it except this file and the recorded results.

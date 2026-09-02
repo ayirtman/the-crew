@@ -67,7 +67,23 @@ def test_report_joins_results_with_human_scores(tmp_path):
                                               "upstream_rejections": 1}) + "\n")
     (tmp_path / "eval" / "scores.csv").write_text("run_id,d1,d2,d3,d4,d5,notes\nv1-01-y,2,1,2,2,1,fine\n")
     out = R.render(tmp_path)
-    assert "| idea | graph | verify | tests | cost_usd | billed_usd | wall_s | tokens | rejections | human |" in out
-    assert "| 01 | v0 | no | 1/3 |" in out and "| 01 | v1 | yes | 3/3 |" in out
+    assert "| idea | graph | verify | repair | tests | cost_usd | billed_usd | wall_s | tokens | rejections | human |" in out
+    assert "| 01 | v0 | no | - | 1/3 |" in out and "| 01 | v1 | yes | - | 3/3 |" in out
     assert "| 8 |" in out and "| - |" in out
     assert "v0: 0/1 verify pass" in out and "v1: 1/1 verify pass" in out
+
+
+def test_report_discovers_variants_and_counts_repairs_and_kills(tmp_path):
+    res = tmp_path / "eval" / "results"
+    res.mkdir(parents=True)
+    line = {"run_id": "x", "graph": "v1r", "idea_id": "01", "status": "success", "verify_pass": True,
+            "tests_passed": 3, "tests_total": 3, "cost_usd": 0.1, "billed_usd": 0.0, "wall_s": 100.0,
+            "input_tokens": 1, "output_tokens": 1, "upstream_rejections": 0, "repaired": True,
+            "first_verify_pass": False}
+    killed = dict(line, run_id="y", idea_id="02", status="killed", verify_pass=False,
+                  tests_passed=None, tests_total=None, repaired=False, first_verify_pass=None)
+    (res / "v1r.jsonl").write_text("\n".join(__import__("json").dumps(x) for x in (line, killed)) + "\n")
+    from pipeline import report as R
+    out = R.render(tmp_path)
+    assert "v1r: 1/2 verify pass" in out and "1 repaired" in out and "1 killed" in out
+    assert "| repair |" in out.splitlines()[0] or "repair" in out.splitlines()[0]

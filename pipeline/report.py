@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pipeline.eval import read_results
 
-HEADER = "| idea | graph | verify | tests | cost_usd | billed_usd | wall_s | tokens | rejections | human |"
+HEADER = "| idea | graph | verify | repair | tests | cost_usd | billed_usd | wall_s | tokens | rejections | human |"
 
 
 def read_scores(root: Path) -> dict[str, int]:
@@ -23,30 +23,38 @@ def read_scores(root: Path) -> dict[str, int]:
     return out
 
 
+def variants_present(root: Path) -> list[str]:
+    return sorted(p.stem for p in (Path(root) / "eval" / "results").glob("*.jsonl"))
+
+
 def render(root: Path) -> str:
     root = Path(root)
     scores = read_scores(root)
     rows = []
     summary = []
-    for graph in ("v0", "v1"):
+    for graph in variants_present(root):
         res = read_results(root, graph)
         if not res:
             continue
         passes = sum(1 for r in res if r.get("verify_pass"))
+        repaired = sum(1 for r in res if r.get("repaired"))
+        kills = sum(1 for r in res if r.get("status") == "killed")
         cost = sum(float(r.get("cost_usd") or 0) for r in res)
         scored = [scores[r["run_id"]] for r in res if r["run_id"] in scores]
         human = f"{sum(scored)}/{10 * len(scored)}" if scored else "-"
-        summary.append(f"{graph}: {passes}/{len(res)} verify pass, cost ${cost:.4f}, human {human}")
+        summary.append(f"{graph}: {passes}/{len(res)} verify pass ({repaired} repaired), {kills} killed, "
+                       f"cost ${cost:.4f}, human {human}")
         for r in res:
             tests = f"{r['tests_passed']}/{r['tests_total']}" if r.get("tests_total") is not None else "-"
             tokens = int(r.get("input_tokens") or 0) + int(r.get("output_tokens") or 0)
             rows.append((r["idea_id"], graph,
-                         f"| {r['idea_id']} | {graph} | {'yes' if r.get('verify_pass') else 'no'} | {tests} | "
+                         f"| {r['idea_id']} | {graph} | {'yes' if r.get('verify_pass') else 'no'} | "
+                         f"{'yes' if r.get('repaired') else '-'} | {tests} | "
                          f"{float(r.get('cost_usd') or 0):.4f} | {float(r.get('billed_usd') or 0):.4f} | "
                          f"{r.get('wall_s', 0)} | {tokens} | {r.get('upstream_rejections', 0)} | "
                          f"{scores.get(r['run_id'], '-')} |"))
     rows.sort()
-    lines = [HEADER, "|---|---|---|---|---|---|---|---|---|---|"] + [r[2] for r in rows]
+    lines = [HEADER, "|---|---|---|---|---|---|---|---|---|---|---|"] + [r[2] for r in rows]
     if summary:
         lines += ["", *summary]
     return "\n".join(lines)
