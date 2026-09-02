@@ -69,6 +69,38 @@ max_seconds = 600
 max_total_tokens = 450000
 max_cost_usd = 0.90
 
+[stages.architect]
+model = "haiku"
+retry_model = "sonnet"
+auth = "subscription"
+max_turns = 4
+max_attempts = 2
+max_output_tokens = 2500
+max_input_chars = 30000
+max_seconds = 360
+
+[stages.ux]
+model = "haiku"
+retry_model = "sonnet"
+auth = "subscription"
+max_turns = 4
+max_attempts = 2
+max_output_tokens = 2500
+max_input_chars = 30000
+max_seconds = 360
+
+[stages.review]
+max_seconds = 60
+
+[stages.security]
+max_seconds = 180
+
+[stages.ship]
+max_seconds = 600
+
+[stages.analytics]
+max_seconds = 60
+
 [stages.verify]
 max_seconds = 600
 
