@@ -130,8 +130,11 @@ kill_feasibility_at_or_below = 1
 confirm_margin = 0.34
 
 [run]
-max_cost_usd = 2.00
-max_seconds = 1800
+# crew scale: 9 LLM stations + a repair pass run ~$2-3 notional (billed 0 on subscription);
+# the cap is a runaway stop, not a diet. Raised 2026-09-03 after a green-but-for-lint run
+# died at $2.05 right after its repair.
+max_cost_usd = 6.00
+max_seconds = 3600
 
 [pricing."claude-haiku-4-5-20251001"]
 input = 1.00
