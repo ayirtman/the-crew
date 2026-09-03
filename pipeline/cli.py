@@ -40,6 +40,10 @@ def _parser() -> argparse.ArgumentParser:
                         parents=[common])
     sh.add_argument("--run", required=True)
 
+    w = sub.add_parser("watch", help="live dashboard for a run in the browser", parents=[common])
+    w.add_argument("--run", default=None, help="run id (default: newest under runs/)")
+    w.add_argument("--port", type=int, default=8787)
+
     sub.add_parser("template-check", help="npm ci the template if needed", parents=[common])
     return p
 
@@ -79,6 +83,27 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "ship":
         from pipeline.ship import ship
         return ship(root=root, run_id=args.run)
+    if args.cmd == "watch":
+        import functools
+        import http.server
+        import webbrowser
+        run_id = args.run
+        if run_id is None:
+            runs = sorted((root / "runs").glob("*/00-manifest.json"), key=lambda p: p.stat().st_mtime)
+            if not runs:
+                print("no runs yet")
+                return 1
+            run_id = runs[-1].parent.name
+        handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(root))
+        url = f"http://localhost:{args.port}/dashboard/?run={run_id}"
+        print(f"watching {run_id} at {url}  (Ctrl+C to stop)")
+        webbrowser.open(url)
+        with http.server.ThreadingHTTPServer(("127.0.0.1", args.port), handler) as srv:
+            try:
+                srv.serve_forever()
+            except KeyboardInterrupt:
+                pass
+        return 0
     if args.cmd == "template-check":
         from pipeline.stages.template import ensure_node_modules
         ensure_node_modules(root / "templates" / "next-app")

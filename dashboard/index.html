@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Crew, Live</title>
+<style>
+:root { --bg:#14181f; --panel:#1d232c; --ink:#e8ebe6; --muted:#8b96a3; --line:#2c3440;
+  --ok:#34d399; --run:#fbbf24; --bad:#f87171; --skip:#4b5563; --accent:#818cf8; }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font-family:ui-monospace, "SF Mono", Menlo, monospace; font-size:14px; }
+.wrap { max-width:1100px; margin:0 auto; padding:28px 20px 60px; }
+h1 { font-size:20px; margin:0 0 4px; letter-spacing:-.01em; }
+.sub { color:var(--muted); margin:0 0 22px; }
+.rail { display:flex; flex-wrap:wrap; gap:10px; }
+.station { flex:1 1 110px; min-width:110px; background:var(--panel); border:1px solid var(--line);
+  border-radius:10px; padding:10px 12px; position:relative; }
+.station .name { font-weight:700; }
+.station .meta { color:var(--muted); font-size:12px; margin-top:4px; min-height:15px; }
+.station::before { content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
+  border-radius:10px 0 0 10px; background:var(--skip); }
+.station.ok::before { background:var(--ok); }
+.station.bad::before { background:var(--bad); }
+.station.run::before { background:var(--run); }
+.station.run { border-color:var(--run); animation:pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow:0 0 0 4px rgb(251 191 36 / .15); } }
+.banner { margin:18px 0; padding:12px 16px; border-radius:10px; background:var(--panel);
+  border:1px solid var(--line); display:flex; gap:24px; flex-wrap:wrap; }
+.banner b { font-weight:700; }
+.status-success b { color:var(--ok); } .status-running b { color:var(--run); }
+.status-verify_failed b, .status-failed b, .status-killed b { color:var(--bad); }
+.status-verified_unshipped b { color:var(--accent); }
+.small { color:var(--muted); font-size:12px; }
+@media (prefers-reduced-motion: reduce) { .station.run { animation:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>The Crew, Live</h1>
+<p class="sub" id="runline">loading…</p>
+<div class="banner" id="banner"></div>
+<div class="rail" id="rail"></div>
+<p class="small" id="foot"></p>
+</div>
+<script>
+const VERIFIERS = ["review", "verify", "security"];
+function expand(stages) {
+  const trio = VERIFIERS.filter(s => stages.includes(s));
+  const out = [];
+  for (const s of stages) { out.push(s); if (s === "repair") out.push(...trio.map(t => t + "2")); }
+  return out;
+}
+const params = new URLSearchParams(location.search);
+const run = params.get("run");
+async function tick() {
+  try {
+    const m = await (await fetch(`/runs/${run}/00-manifest.json`, {cache: "no-store"})).json();
+    render(m);
+  } catch (e) {
+    document.getElementById("runline").textContent = `cannot load runs/${run}/00-manifest.json — ${e}`;
+  }
+}
+function render(m) {
+  document.getElementById("runline").textContent =
+    `${m.run_id} · graph ${m.graph} · idea ${m.idea_id} · started ${m.started_at}`;
+  const nodes = expand(m.variant_stages);
+  const recs = Object.fromEntries(m.stages.map(s => [s.stage, s]));
+  const running = m.status === "running";
+  const doneNames = m.stages.map(s => s.stage);
+  const current = running ? nodes.find(n => !(n in recs)) : null;
+  let cost = 0, wall = 0;
+  const rail = document.getElementById("rail");
+  rail.innerHTML = "";
+  for (const n of nodes) {
+    const r = recs[n];
+    const div = document.createElement("div");
+    let cls = "", meta = "";
+    if (r) {
+      cost += r.cost_usd; wall += r.wall_ms;
+      cls = r.evaluator_passed ? "ok" : "bad";
+      meta = `${(r.wall_ms / 1000).toFixed(0)}s · $${r.cost_usd.toFixed(2)}`;
+    } else if (n === current) { cls = "run"; meta = "running…"; }
+    else if (!running) { meta = "—"; }
+    div.className = `station ${cls}`;
+    div.innerHTML = `<div class="name">${n}</div><div class="meta">${meta}</div>`;
+    rail.appendChild(div);
+  }
+  const b = document.getElementById("banner");
+  b.className = `banner status-${m.status}`;
+  b.innerHTML = `<span>status <b>${m.status}</b></span>` +
+    (m.failed_stage ? `<span>failed at <b>${m.failed_stage}</b></span>` : "") +
+    `<span>stations <b>${doneNames.length}/${nodes.length}</b></span>` +
+    `<span>cost <b>$${cost.toFixed(2)}</b> (billed $0.00)</span>` +
+    `<span>wall <b>${(wall / 60000).toFixed(1)}m</b></span>`;
+  document.getElementById("foot").textContent =
+    `polling every 2s · template v${m.template_version} · pipeline ${m.pipeline_git_sha}`;
+}
+tick();
+setInterval(tick, 2000);
+</script>
+</body>
+</html>
