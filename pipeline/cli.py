@@ -94,7 +94,25 @@ def main(argv: list[str] | None = None) -> int:
                 print("no runs yet")
                 return 1
             run_id = runs[-1].parent.name
-        handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(root))
+        class Handler(http.server.SimpleHTTPRequestHandler):
+            def do_GET(self):
+                if self.path == "/api/runs":
+                    import json as _json
+                    runs = sorted((root / "runs").glob("*/00-manifest.json"),
+                                  key=lambda p: p.stat().st_mtime, reverse=True)
+                    body = _json.dumps([p.parent.name for p in runs]).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                super().do_GET()
+
+            def log_message(self, *a):
+                pass
+
+        handler = functools.partial(Handler, directory=str(root))
         url = f"http://localhost:{args.port}/dashboard/?run={run_id}"
         print(f"watching {run_id} at {url}  (Ctrl+C to stop)")
         webbrowser.open(url)

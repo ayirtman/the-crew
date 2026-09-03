@@ -3,100 +3,182 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Crew, Live</title>
+<title>Mission Control</title>
 <style>
-:root { --bg:#14181f; --panel:#1d232c; --ink:#e8ebe6; --muted:#8b96a3; --line:#2c3440;
-  --ok:#34d399; --run:#fbbf24; --bad:#f87171; --skip:#4b5563; --accent:#818cf8; }
+:root { --bg:#14181f; --panel:#1d232c; --panel2:#232b36; --ink:#e8ebe6; --muted:#8b96a3;
+  --line:#2c3440; --ok:#34d399; --run:#fbbf24; --bad:#f87171; --skip:#4b5563; --accent:#818cf8; }
+* { box-sizing:border-box; }
 body { margin:0; background:var(--bg); color:var(--ink);
-  font-family:ui-monospace, "SF Mono", Menlo, monospace; font-size:14px; }
-.wrap { max-width:1100px; margin:0 auto; padding:28px 20px 60px; }
-h1 { font-size:20px; margin:0 0 4px; letter-spacing:-.01em; }
-.sub { color:var(--muted); margin:0 0 22px; }
-.rail { display:flex; flex-wrap:wrap; gap:10px; }
-.station { flex:1 1 110px; min-width:110px; background:var(--panel); border:1px solid var(--line);
-  border-radius:10px; padding:10px 12px; position:relative; }
-.station .name { font-weight:700; }
-.station .meta { color:var(--muted); font-size:12px; margin-top:4px; min-height:15px; }
-.station::before { content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
-  border-radius:10px 0 0 10px; background:var(--skip); }
-.station.ok::before { background:var(--ok); }
-.station.bad::before { background:var(--bad); }
-.station.run::before { background:var(--run); }
-.station.run { border-color:var(--run); animation:pulse 1.2s ease-in-out infinite; }
-@keyframes pulse { 50% { box-shadow:0 0 0 4px rgb(251 191 36 / .15); } }
-.banner { margin:18px 0; padding:12px 16px; border-radius:10px; background:var(--panel);
-  border:1px solid var(--line); display:flex; gap:24px; flex-wrap:wrap; }
-.banner b { font-weight:700; }
+  font-family:ui-monospace, "SF Mono", Menlo, monospace; font-size:13.5px; }
+.layout { display:flex; min-height:100vh; }
+aside { width:250px; flex-shrink:0; border-right:1px solid var(--line); padding:16px 10px; }
+aside h2 { font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:0 0 10px 6px; }
+.runbtn { display:block; width:100%; text-align:left; background:none; border:1px solid transparent;
+  border-radius:8px; padding:7px 8px; color:var(--ink); font:inherit; cursor:pointer; margin-bottom:2px; }
+.runbtn:hover { background:var(--panel); }
+.runbtn.active { background:var(--panel); border-color:var(--accent); }
+.runbtn .st { font-size:11px; }
+main { flex:1; padding:24px 24px 60px; min-width:0; }
+h1 { font-size:19px; margin:0 0 2px; }
+.sub { color:var(--muted); margin:0 0 16px; overflow-wrap:anywhere; }
+.banner { margin:0 0 16px; padding:11px 16px; border-radius:10px; background:var(--panel);
+  border:1px solid var(--line); display:flex; gap:22px; flex-wrap:wrap; }
 .status-success b { color:var(--ok); } .status-running b { color:var(--run); }
 .status-verify_failed b, .status-failed b, .status-killed b { color:var(--bad); }
 .status-verified_unshipped b { color:var(--accent); }
-.small { color:var(--muted); font-size:12px; }
-@media (prefers-reduced-motion: reduce) { .station.run { animation:none; } }
+.rail { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+.station { flex:1 1 104px; min-width:104px; background:var(--panel); border:1px solid var(--line);
+  border-radius:10px; padding:9px 10px 9px 13px; position:relative; cursor:pointer; }
+.station:hover { border-color:var(--accent); }
+.station.sel { border-color:var(--accent); background:var(--panel2); }
+.station .name { font-weight:700; }
+.station .meta { color:var(--muted); font-size:11.5px; margin-top:3px; min-height:14px; }
+.station::before { content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
+  border-radius:10px 0 0 10px; background:var(--skip); }
+.station.ok::before { background:var(--ok); } .station.bad::before { background:var(--bad); }
+.station.run::before { background:var(--run); }
+.station.run { border-color:var(--run); animation:pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow:0 0 0 4px rgb(251 191 36 / .15); } }
+#detail { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
+#detail h3 { margin:0 0 10px; font-size:15px; }
+#detail .muted { color:var(--muted); }
+.kv { display:grid; grid-template-columns:auto 1fr; gap:4px 16px; margin:8px 0; }
+.kv dt { color:var(--muted); } .kv dd { margin:0; overflow-wrap:anywhere; }
+.chip { display:inline-block; border-radius:6px; padding:1px 8px; font-size:11.5px; margin:0 6px 4px 0; }
+.chip.ok { background:rgb(52 211 153 / .15); color:var(--ok); }
+.chip.bad { background:rgb(248 113 113 / .18); color:var(--bad); }
+pre { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px;
+  overflow-x:auto; font-size:12px; white-space:pre-wrap; }
+ul { margin:6px 0; padding-left:18px; } li { margin:3px 0; }
+a { color:var(--accent); }
+@media (prefers-reduced-motion: reduce){ .station.run { animation:none; } }
+@media (max-width:760px){ .layout{flex-direction:column;} aside{width:100%; display:flex; overflow-x:auto;} }
 </style>
 </head>
 <body>
-<div class="wrap">
-<h1>The Crew, Live</h1>
+<div class="layout">
+<aside><h2>Runs <label style="float:right;font-weight:400;text-transform:none"><input type="checkbox" id="follow" checked> follow latest</label></h2><div id="runs"></div></aside>
+<main>
+<h1>Mission Control</h1>
 <p class="sub" id="runline">loading…</p>
 <div class="banner" id="banner"></div>
 <div class="rail" id="rail"></div>
-<p class="small" id="foot"></p>
+<div id="detail"><span class="muted">Click a station to see the artifact it produced.</span></div>
+</main>
 </div>
 <script>
 const VERIFIERS = ["review", "verify", "security"];
-function expand(stages) {
-  const trio = VERIFIERS.filter(s => stages.includes(s));
-  const out = [];
-  for (const s of stages) { out.push(s); if (s === "repair") out.push(...trio.map(t => t + "2")); }
-  return out;
-}
-const params = new URLSearchParams(location.search);
-const run = params.get("run");
-async function tick() {
+const expand = st => { const t = VERIFIERS.filter(s => st.includes(s)); const o = [];
+  for (const s of st) { o.push(s); if (s === "repair") o.push(...t.map(x => x + "2")); } return o; };
+let current = new URLSearchParams(location.search).get("run");
+let selected = null, manifest = null;
+const $ = id => document.getElementById(id);
+
+async function j(url) { const r = await fetch(url, {cache: "no-store"}); if (!r.ok) throw new Error(r.status); return r.json(); }
+
+async function refreshRuns() {
   try {
-    const m = await (await fetch(`/runs/${run}/00-manifest.json`, {cache: "no-store"})).json();
-    render(m);
-  } catch (e) {
-    document.getElementById("runline").textContent = `cannot load runs/${run}/00-manifest.json — ${e}`;
-  }
+    const runs = await j("/api/runs");
+    if (($("follow").checked || !current) && runs.length) {
+      if (current !== runs[0]) { current = runs[0]; selected = null; }
+    }
+    const box = $("runs"); box.innerHTML = "";
+    for (const r of runs.slice(0, 25)) {
+      const b = document.createElement("button");
+      b.className = "runbtn" + (r === current ? " active" : "");
+      b.innerHTML = `<div>${r.replace(/-\d{8}-\d{6}$/, "")}</div><div class="st muted">${r.slice(-15)}</div>`;
+      b.onclick = () => { current = r; selected = null; $("follow").checked = false; tick(); };
+      box.appendChild(b);
+    }
+  } catch {}
 }
-function render(m) {
-  document.getElementById("runline").textContent =
-    `${m.run_id} · graph ${m.graph} · idea ${m.idea_id} · started ${m.started_at}`;
+
+async function tick() {
+  if (!current) return;
+  try { manifest = await j(`/runs/${current}/00-manifest.json`); render(); }
+  catch (e) { $("runline").textContent = `cannot load ${current}: ${e}`; }
+}
+
+function render() {
+  const m = manifest;
+  $("runline").textContent = `${m.run_id} · ${m.graph} · idea ${m.idea_id} · ${m.started_at}`;
   const nodes = expand(m.variant_stages);
   const recs = Object.fromEntries(m.stages.map(s => [s.stage, s]));
   const running = m.status === "running";
-  const doneNames = m.stages.map(s => s.stage);
-  const current = running ? nodes.find(n => !(n in recs)) : null;
+  const cur = running ? nodes.find(n => !(n in recs)) : null;
   let cost = 0, wall = 0;
-  const rail = document.getElementById("rail");
-  rail.innerHTML = "";
-  for (const n of nodes) {
-    const r = recs[n];
-    const div = document.createElement("div");
-    let cls = "", meta = "";
-    if (r) {
-      cost += r.cost_usd; wall += r.wall_ms;
+  const rail = $("rail"); rail.innerHTML = "";
+  nodes.forEach((n, i) => {
+    const r = recs[n]; let cls = "", meta = "";
+    if (r) { cost += r.cost_usd; wall += r.wall_ms;
       cls = r.evaluator_passed ? "ok" : "bad";
-      meta = `${(r.wall_ms / 1000).toFixed(0)}s · $${r.cost_usd.toFixed(2)}`;
-    } else if (n === current) { cls = "run"; meta = "running…"; }
-    else if (!running) { meta = "—"; }
-    div.className = `station ${cls}`;
-    div.innerHTML = `<div class="name">${n}</div><div class="meta">${meta}</div>`;
-    rail.appendChild(div);
-  }
-  const b = document.getElementById("banner");
-  b.className = `banner status-${m.status}`;
+      meta = `${(r.wall_ms/1000).toFixed(0)}s · $${r.cost_usd.toFixed(2)}`; }
+    else if (n === cur) { cls = "run"; meta = "running…"; }
+    else if (!running) meta = "—";
+    const d = document.createElement("div");
+    d.className = `station ${cls}` + (n === selected ? " sel" : "");
+    d.innerHTML = `<div class="name">${String(i+1).padStart(2,"0")} ${n}</div><div class="meta">${meta}</div>`;
+    d.onclick = () => { selected = n; render(); showDetail(n, i + 1, recs[n]); };
+    rail.appendChild(d);
+  });
+  const b = $("banner"); b.className = `banner status-${m.status}`;
   b.innerHTML = `<span>status <b>${m.status}</b></span>` +
     (m.failed_stage ? `<span>failed at <b>${m.failed_stage}</b></span>` : "") +
-    `<span>stations <b>${doneNames.length}/${nodes.length}</b></span>` +
-    `<span>cost <b>$${cost.toFixed(2)}</b> (billed $0.00)</span>` +
-    `<span>wall <b>${(wall / 60000).toFixed(1)}m</b></span>`;
-  document.getElementById("foot").textContent =
-    `polling every 2s · template v${m.template_version} · pipeline ${m.pipeline_git_sha}`;
+    `<span>stations <b>${m.stages.length}/${nodes.length}</b></span>` +
+    `<span>cost <b>$${cost.toFixed(2)}</b> <span class="muted">(billed $0)</span></span>` +
+    `<span>wall <b>${(wall/60000).toFixed(1)}m</b></span>` +
+    `<span class="muted">template v${m.template_version}</span>`;
 }
-tick();
-setInterval(tick, 2000);
+
+async function showDetail(name, seq, rec) {
+  const d = $("detail");
+  if (!rec) { d.innerHTML = `<h3>${name}</h3><span class="muted">not reached yet</span>`; return; }
+  const stem = rec.artifact_path ? rec.artifact_path.split("/").pop() : null;
+  let art = null;
+  if (stem) { try { art = await j(`/runs/${current}/${stem}`); } catch {} }
+  let html = `<h3>${String(seq).padStart(2,"0")} ${name} ${rec.evaluator_passed ? '<span class="chip ok">passed</span>' : '<span class="chip bad">rejected</span>'}</h3>`;
+  html += `<dl class="kv"><dt>model</dt><dd>${rec.model}</dd><dt>wall</dt><dd>${(rec.wall_ms/1000).toFixed(1)}s</dd><dt>cost</dt><dd>$${rec.cost_usd.toFixed(3)} (billed $${rec.billed_usd.toFixed(2)})</dd></dl>`;
+  if (rec.evaluator_reasons?.length) html += `<p><b>Rejected:</b></p><ul>` + rec.evaluator_reasons.map(r => `<li class="chip bad" style="display:list-item">${esc(r)}</li>`).join("") + `</ul>`;
+  if (art) html += renderArtifact(name, art);
+  d.innerHTML = html;
+}
+
+const esc = s => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+function renderArtifact(name, a) {
+  if (name === "panel") {
+    let h = `<dl class="kv"><dt>verdict</dt><dd>${a.kill ? '<span class="chip bad">KILL</span>' : '<span class="chip ok">lives</span>'} ${esc((a.kill_reasons||[]).join("; "))}</dd>` +
+      `<dt>means</dt><dd>desirability ${a.means.desirability.toFixed(2)} · clarity ${a.means.clarity.toFixed(2)} · feasibility ${a.means.feasibility.toFixed(2)}</dd>` +
+      `<dt>samples</dt><dd>${a.reactions.length} reactions</dd></dl>`;
+    for (const r of a.reactions) h += `<p><b>${r.persona}</b> <span class="muted">d${r.scores.desirability} c${r.scores.clarity} f${r.scores.feasibility}</span></p><ul>` +
+      r.objections.map(o => `<li>${esc(o)}</li>`).join("") + `</ul>`;
+    return h;
+  }
+  if (name === "intake") return `<dl class="kv"><dt>title</dt><dd>${esc(a.title)}</dd><dt>problem</dt><dd>${esc(a.problem)}</dd><dt>feature</dt><dd>${esc(a.single_feature)}</dd><dt>behaviors</dt><dd><ul>${a.must_have_behaviors.map(b=>`<li>${esc(b)}</li>`).join("")}</ul></dd><dt>non-goals</dt><dd>${a.non_goals.map(esc).join(" · ")}</dd></dl>`;
+  if (name === "evidence") return `<dl class="kv"><dt>searches</dt><dd>${a.web_search_requests}</dd><dt>claims</dt><dd><ul>${a.claims.map(c=>`<li>${esc(c.statement)} <a href="${encodeURI(c.source_url)}" target="_blank" rel="noopener">src</a></li>`).join("")}</ul></dd><dt>competitors</dt><dd>${a.competitors.map(c=>esc(c.name)).join(" · ")||"—"}</dd></dl>`;
+  if (name === "plan") return `<dl class="kv"><dt>files</dt><dd><ul>${a.files.map(f=>`<li>${esc(f.path)} <span class="muted">${esc(f.purpose)}</span></li>`).join("")}</ul></dd><dt>criteria</dt><dd><ul>${a.acceptance_criteria.map(c=>`<li>${esc(c.id)}: ${esc(c.test_name)}</li>`).join("")}</ul></dd></dl>`;
+  if (name === "architect") return `<dl class="kv"><dt>entities</dt><dd>${a.entities.map(e=>`${esc(e.name)}(${e.fields.map(esc).join(", ")})`).join(" · ")}</dd><dt>interfaces</dt><dd><ul>${a.interfaces.map(i=>`<li><b>${esc(i.name)}</b>: ${esc(i.backend_file)} → ${esc(i.frontend_file)}<br><span class="muted">${i.shape.map(esc).join(" · ")}</span></li>`).join("")}</ul></dd></dl>`;
+  if (name === "ux") return `<dl class="kv"><dt>screens</dt><dd>${a.screens.map(s=>`<b>${esc(s.id)}</b> ${esc(s.purpose)}`).join("<br>")}</dd><dt>flows</dt><dd><ul>${a.flows.map(f=>`<li><b>${esc(f.name)}</b> (behaviors ${f.covers_behaviors.join(",")}): ${f.steps.map(s=>`${esc(s.screen_id)}·${esc(s.action)}`).join(" → ")}</li>`).join("")}</ul></dd></dl>`;
+  if (name === "ui") return a.screens.map(s=>`<p><b>${esc(s.name)}</b> <span class="muted">[${s.components_used.map(esc).join(", ")}]</span><br>${esc(s.layout_description)}</p>`).join("");
+  if (name.startsWith("verify")) {
+    let h = `<p>${a.commands.map(c=>`<span class="chip ${c.passed?"ok":"bad"}">${c.name}</span>`).join("")} tests ${a.tests_passed}/${a.tests_total} · eslint ${a.eslint_errors} err</p>`;
+    for (const c of a.commands) if (!c.passed) h += `<pre>${esc((c.stderr_tail||c.stdout_tail||"").slice(-1200))}</pre>`;
+    return h;
+  }
+  if (name.startsWith("review") || name.startsWith("security"))
+    return (a.findings?.length ? `<ul>${a.findings.map(f=>`<li><span class="chip bad">${esc(f.kind)}</span> ${esc(f.path)} — ${esc(f.detail)}</li>`).join("")}</ul>` : `<p class="chip ok">clean</p>`) + (a.notes?.length?`<p class="muted">${a.notes.map(esc).join("; ")}</p>`:"");
+  if (name === "build" || name === "build_split" || name === "repair") {
+    const files = a.files_written || [];
+    return `<dl class="kv"><dt>files</dt><dd><ul>${files.map(f=>`<li>${esc(f)}</li>`).join("")}</ul></dd>` +
+      (a.overlap?.length?`<dt>overlap</dt><dd class="chip bad">${a.overlap.map(esc).join(", ")}</dd>`:"") + `</dl>`;
+  }
+  if (name === "ship") return `<p><a href="${encodeURI(a.url)}" target="_blank" rel="noopener">${esc(a.url)}</a> <span class="muted">${esc(a.deployed_at)}</span></p>`;
+  if (name === "analytics") return a.checks.map(c=>`<p><span class="chip ${c.status>=200&&c.status<300?"ok":"bad"}">${c.status}</span> ${esc(c.url)} · ${c.response_ms}ms · ${c.bytes}b</p>`).join("");
+  return `<pre>${esc(JSON.stringify(a, null, 2)).slice(0, 4000)}</pre>`;
+}
+
+refreshRuns(); tick();
+setInterval(() => { refreshRuns(); tick(); }, 2000);
 </script>
 </body>
 </html>
