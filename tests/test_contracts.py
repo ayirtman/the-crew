@@ -173,3 +173,21 @@ def test_brief_allows_up_to_eight_behaviors():
     d["must_have_behaviors"].append("Return thing number 8")
     with pytest.raises(ValidationError, match="3 and 8"):
         BriefDraft.model_validate(d)
+
+
+def test_plan_ui_tests_must_be_tsx():
+    # measured 2026-09-03: plan named tests/ui/page.test.ts, the builder correctly wrote .tsx
+    # (JSX needs it), and the exact-path gate failed the run. The contract now refuses the trap.
+    import json
+    from pathlib import Path
+
+    import pytest
+    from pydantic import ValidationError
+
+    from pipeline.contracts import PlanDraft
+    d = json.loads((Path(__file__).parent / "fixtures" / "plan_good.json").read_text())
+    d["files"].append({"path": "tests/ui/page.test.ts", "purpose": "ui test"})
+    with pytest.raises(ValidationError, match="tsx"):
+        PlanDraft.model_validate(d)
+    d["files"][-1]["path"] = "tests/ui/page.test.tsx"
+    PlanDraft.model_validate(d)

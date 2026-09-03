@@ -149,6 +149,8 @@ class PlannedFile(BaseModel):
     def _path(cls, v: str) -> str:
         if not v.startswith(ALLOWED_DIRS):
             raise ValueError(f"files: '{v}' must be under app/, lib/ or tests/")
+        if v.startswith("tests/ui/") and v.endswith(".test.ts"):
+            raise ValueError(f"files: '{v}' renders JSX; ui tests must end in .test.tsx")
         return v
 
 
