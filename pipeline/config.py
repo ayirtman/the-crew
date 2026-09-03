@@ -54,6 +54,9 @@ class PanelRules(BaseModel):
     model_config = FROZEN
     min_mean_desirability: float = 2.5
     kill_feasibility_at_or_below: int = 1
+    # measured 2026-09-02: one persona-point of noise flipped a verdict at the bar; a mean
+    # within this margin of the bar gets a confirmation sample before the verdict stands
+    confirm_margin: float = 0.34
 
 
 class Config(BaseModel):

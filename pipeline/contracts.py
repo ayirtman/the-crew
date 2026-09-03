@@ -344,8 +344,11 @@ class ReactionReport(BaseModel):
     @classmethod
     def _three(cls, v):
         personas = [r.persona for r in v]
-        if len(v) != 3 or len(set(personas)) != 3:
-            raise ValueError(f"reactions: need three distinct personas, got {personas}")
+        counts = {p: personas.count(p) for p in set(personas)}
+        one_sample = len(v) == 3 and all(c == 1 for c in counts.values()) and len(counts) == 3
+        two_samples = len(v) == 6 and all(c == 2 for c in counts.values()) and len(counts) == 3
+        if not (one_sample or two_samples):
+            raise ValueError(f"reactions: need three distinct personas (or two full samples of three), got {personas}")
         return v
 
 

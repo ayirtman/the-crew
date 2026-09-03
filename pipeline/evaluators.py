@@ -115,10 +115,13 @@ def evaluate_evidence(p: EvidencePack, rules: EvidenceRules, *, fetch) -> list[s
 def evaluate_reaction(rep: ReactionReport, rules: PanelRules) -> list[str]:
     """Re-runs the deterministic arbiter and rejects a report whose verdict does not match.
     The model's scores are inputs; the kill decision must be the rule's, never the model's."""
-    from pipeline.stages.panel import arbitrate
+    from pipeline.stages.panel import arbitrate, is_boundary
 
     reasons: list[str] = []
     means, kill, kill_reasons = arbitrate(rep.reactions, rules)
+    if len(rep.reactions) == 3 and is_boundary(means.desirability, rules):
+        reasons.append(f"boundary verdict without a confirmation sample: mean desirability "
+                       f"{means.desirability:.2f} is within {rules.confirm_margin} of {rules.min_mean_desirability}")
     if rep.means != means:
         reasons.append(f"means tampered: recorded {rep.means}, recomputed {means}")
     if rep.kill != kill or rep.kill_reasons != kill_reasons:

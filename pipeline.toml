@@ -127,6 +127,7 @@ min_domains = 2
 [panel]
 min_mean_desirability = 2.5
 kill_feasibility_at_or_below = 1
+confirm_margin = 0.34
 
 [run]
 max_cost_usd = 2.00
