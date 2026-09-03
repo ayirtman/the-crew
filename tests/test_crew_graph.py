@@ -263,3 +263,15 @@ def test_split_task_prompt_lists_each_roles_planned_files():
     frontend = build_split._task("frontend", b, p, None)
     assert "tests/api/count.test.ts" in backend.split("YOU MUST WRITE")[1]
     assert "tests/ui/page.test.tsx" in frontend.split("YOU MUST WRITE")[1]
+
+
+def test_research_variant_runs_without_yes(tmp_path):
+    # develop runs the research phase without --yes; a variant with no build node must not
+    # try to pause before one (ValueError: Interrupt node `build` not found, 2026-09-03)
+    deps, deploy, probes = _deps(tmp_path)
+    out = G.run(deps=deps, variant="research", idea_path=_idea(tmp_path), idea_id="01",
+                run_id="rs1", yes=False)
+    assert out.status == "success"
+    run_dir = tmp_path / "runs" / "rs1"
+    for name in ("01-brief", "02-evidence", "03-audience", "04-domain"):
+        assert (run_dir / f"{name}.json").exists(), name

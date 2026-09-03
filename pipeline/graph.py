@@ -662,8 +662,9 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
         g.add_conditional_edges(name, _route_for(name, nxt, nodes), targets)
     for t in ("failed", "killed", "finish"):
         g.add_edge(t, END)
-    pause = "build_split" if "build_split" in nodes else "build"
-    interrupts = [] if yes else [pause]
+    interrupts = []
+    if not yes and ("build" in nodes or "build_split" in nodes):
+        interrupts.append("build_split" if "build_split" in nodes else "build")
     if "ship" in nodes:
         # pressing publish is one of the diagram's two human touches; --yes never skips it
         interrupts.append("ship")
