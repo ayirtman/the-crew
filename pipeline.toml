@@ -3,10 +3,10 @@ model = "haiku"
 retry_model = "sonnet"
 auth = "subscription"
 max_turns = 4
-max_attempts = 2
+max_attempts = 3
 max_output_tokens = 2000
 max_input_chars = 24000
-# covers both attempts; rev-4-sized ideas with a sonnet retry blew 360s (2026-09-03)
+# covers all attempts; rev-4-sized ideas with a sonnet retry blew 360s (2026-09-03)
 max_seconds = 600
 
 [stages.plan]
