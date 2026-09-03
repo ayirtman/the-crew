@@ -122,3 +122,11 @@ def test_review_is_idempotent_after_a_repair_pass(tmp_path):
     assert _produce(tpl, app, split).review_pass is False
     (app / "tests/base.test.ts").write_text("test('base', () => {})")
     assert _produce(tpl, app, split).review_pass is True
+
+
+def test_toolchain_generated_files_are_not_strays(tmp_path):
+    # `next build` (run by verify, before review2) generates next-env.d.ts in the app dir;
+    # a file the toolchain writes is not the builder's doing and must never fail review.
+    tpl, app = _tree(tmp_path, {**GOOD_FILES, "next-env.d.ts": "/// <reference types=\"next\" />"})
+    rep = _produce(tpl, app, _split(app, [], ["app/page.tsx"]))
+    assert rep.review_pass is True

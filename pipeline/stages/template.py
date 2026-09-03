@@ -12,7 +12,7 @@ LOCKED_FILES = frozenset({
     "eslint.config.mjs", "vitest.config.mts", "vitest.setup.ts",
 })
 SKIP_DIRS = frozenset({"node_modules", ".next", ".git"})
-SKIP_FILES = frozenset({"tsconfig.tsbuildinfo", ".DS_Store"})
+SKIP_FILES = frozenset({"tsconfig.tsbuildinfo", ".DS_Store", "next-env.d.ts"})
 
 
 def materialize(template_dir: Path, apps_dir: Path, run_id: str) -> Path:
