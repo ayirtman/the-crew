@@ -146,11 +146,15 @@ async function showDetail(name, seq, rec) {
 const esc = s => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 
 function renderArtifact(name, a) {
+  if (name === "audience") return `<dl class="kv"><dt>constraints</dt><dd>${a.constraints.map(esc).join(" · ")}</dd><dt>patterns</dt><dd><ul>${a.patterns.map(x=>`<li>${esc(x.pattern)}<br><span class="muted">→ ${esc(x.implication)}</span> <a href="${encodeURI(x.source_url)}" target="_blank" rel="noopener">src</a></li>`).join("")}</ul></dd><dt>searches</dt><dd>${a.web_search_requests}</dd></dl>`;
   if (name === "panel") {
     let h = `<dl class="kv"><dt>verdict</dt><dd>${a.kill ? '<span class="chip bad">KILL</span>' : '<span class="chip ok">lives</span>'} ${esc((a.kill_reasons||[]).join("; "))}</dd>` +
       `<dt>means</dt><dd>desirability ${a.means.desirability.toFixed(2)} · clarity ${a.means.clarity.toFixed(2)} · feasibility ${a.means.feasibility.toFixed(2)}</dd>` +
       `<dt>samples</dt><dd>${a.reactions.length} reactions</dd></dl>`;
-    for (const r of a.reactions) h += `<p><b>${r.persona}</b> <span class="muted">d${r.scores.desirability} c${r.scores.clarity} f${r.scores.feasibility}</span></p><ul>` +
+    if (a.cast) h += `<p><b>the cast:</b> ${a.cast.map(c=>`${esc(c.name)} <span class="muted">(${esc(c.seat)})</span>`).join(" · ")}</p>`;
+    const bySeat = {};
+    for (const c of a.cast || []) bySeat[c.seat] = c.name;
+    for (const r of a.reactions) h += `<p><b>${esc(bySeat[r.persona] || r.persona)}</b> <span class="muted">${r.persona}</span> <span class="muted">d${r.scores.desirability} c${r.scores.clarity} f${r.scores.feasibility}</span></p><ul>` +
       r.objections.map(o => `<li>${esc(o)}</li>`).join("") + `</ul>`;
     return h;
   }

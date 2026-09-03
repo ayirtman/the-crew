@@ -288,9 +288,101 @@ class EvidencePack(EvidencePackDraft):
     web_search_requests: int = 0
 
 
+# ---------------------------------------------------------------- Audience
+
+
+class UxPattern(BaseModel):
+    model_config = STRICT
+    pattern: str
+    implication: str
+    source_url: str
+    source_title: str
+
+    @field_validator("pattern", "implication")
+    @classmethod
+    def _texts(cls, v: str, info) -> str:
+        if not 10 <= len(v) <= 300:
+            raise ValueError(f"{info.field_name}: must be 10 to 300 chars")
+        return check_vague(v, info.field_name)
+
+    @field_validator("source_url")
+    @classmethod
+    def _url(cls, v: str) -> str:
+        return _http(v, "source_url")
+
+
+class AudiencePackDraft(BaseModel):
+    """How this audience actually interacts: mistake handling, attention, distraction. The
+    research the designers and builders read before anything is drawn."""
+    model_config = STRICT
+    patterns: list[UxPattern]
+    constraints: list[str]
+    search_queries_used: list[str]
+
+    @field_validator("patterns")
+    @classmethod
+    def _patterns(cls, v):
+        return _count(v, "patterns", 4, 12)
+
+    @field_validator("constraints")
+    @classmethod
+    def _constraints(cls, v):
+        return _unique(_count(v, "constraints", 1, 8), "constraints")
+
+    @field_validator("search_queries_used")
+    @classmethod
+    def _q(cls, v):
+        return _count(v, "search_queries_used", 1, 12)
+
+
+class AudiencePack(AudiencePackDraft):
+    schema_version: Literal["1"] = "1"
+    stage: Literal["audience"] = "audience"
+    run_id: str
+    parent: str
+    web_search_requests: int = 0
+
+
 # ---------------------------------------------------------------- Panel
 
-Persona = Literal["target_user", "skeptic", "operator"]
+# The focus group: seven fixed seats whose identities are cast per project from the research.
+SEATS = ("end_user", "buyer", "skeptic", "operator", "domain_expert", "edge_user", "rival_user")
+Seat = Literal["end_user", "buyer", "skeptic", "operator", "domain_expert", "edge_user", "rival_user"]
+
+
+class PersonaSpec(BaseModel):
+    """One cast panelist: a concrete person occupying a fixed seat, grounded in the research."""
+    model_config = STRICT
+    seat: Seat
+    name: str
+    description: str
+    constraints: list[str]
+    grounded_in: list[str]
+
+    @field_validator("description")
+    @classmethod
+    def _desc(cls, v: str) -> str:
+        if len(v) < 40:
+            raise ValueError("description: shorter than 40 chars; cast a real person, not a label")
+        return v
+
+    @field_validator("grounded_in")
+    @classmethod
+    def _g(cls, v):
+        return _count(v, "grounded_in", 1, 6)
+
+
+class CastingDraft(BaseModel):
+    model_config = STRICT
+    personas: list[PersonaSpec]
+
+    @model_validator(mode="after")
+    def _seats(self) -> "CastingDraft":
+        seats = [p.seat for p in self.personas]
+        if sorted(seats) != sorted(SEATS):
+            raise ValueError(f"personas: need exactly one per seat {SEATS}, got {seats}")
+        _unique([p.name for p in self.personas], "personas")
+        return self
 
 
 class PersonaScores(BaseModel):
@@ -328,7 +420,7 @@ class PersonaReactionDraft(BaseModel):
 
 
 class PersonaReaction(PersonaReactionDraft):
-    persona: Persona
+    persona: Seat
 
 
 class ReactionReport(BaseModel):
@@ -337,20 +429,29 @@ class ReactionReport(BaseModel):
     stage: Literal["panel"] = "panel"
     run_id: str
     parent: str
+    cast: list[PersonaSpec]
     reactions: list[PersonaReaction]
     means: MeanScores
     kill: bool
     kill_reasons: list[str]
 
+    @field_validator("cast")
+    @classmethod
+    def _cast(cls, v):
+        seats = [p.seat for p in v]
+        if sorted(seats) != sorted(SEATS):
+            raise ValueError(f"cast: need exactly one persona per seat, got {seats}")
+        return v
+
     @field_validator("reactions")
     @classmethod
-    def _three(cls, v):
-        personas = [r.persona for r in v]
-        counts = {p: personas.count(p) for p in set(personas)}
-        one_sample = len(v) == 3 and all(c == 1 for c in counts.values()) and len(counts) == 3
-        two_samples = len(v) == 6 and all(c == 2 for c in counts.values()) and len(counts) == 3
-        if not (one_sample or two_samples):
-            raise ValueError(f"reactions: need three distinct personas (or two full samples of three), got {personas}")
+    def _full_samples(cls, v):
+        seats = [r.persona for r in v]
+        counts = {s: seats.count(s) for s in SEATS}
+        one = all(c == 1 for c in counts.values()) and len(v) == len(SEATS)
+        two = all(c == 2 for c in counts.values()) and len(v) == 2 * len(SEATS)
+        if not (one or two):
+            raise ValueError(f"reactions: need one (or two) per seat, got {seats}")
         return v
 
 

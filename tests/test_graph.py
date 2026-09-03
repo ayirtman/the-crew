@@ -256,10 +256,12 @@ def test_v2e_writes_evidence_between_brief_and_plan(tmp_path):
 
 
 def test_v2p_kill_ends_run_as_killed_not_failed(tmp_path):
-    from pipeline.contracts import EvidencePackDraft, PersonaReactionDraft
+    from pipeline.contracts import CastingDraft, EvidencePackDraft, PersonaReactionDraft
+    from tests.test_audience_casting import CAST_GOOD
     from tests.test_evidence import GOOD
     caller = _caller()
     caller.responses[EvidencePackDraft] = GOOD
+    caller.responses[CastingDraft] = CAST_GOOD
     caller.responses[PersonaReactionDraft] = {
         "scores": {"desirability": 0, "clarity": 2, "feasibility": 1},
         "objections": ["nobody wants this", "cannot be built in one page"],

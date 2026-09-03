@@ -8,7 +8,8 @@ import pytest
 from pydantic import ValidationError
 
 from pipeline.config import load_config
-from pipeline.contracts import IdeaRevisionDraft, InterviewQuestionsDraft, ReactionReport
+from pipeline.contracts import IdeaRevisionDraft, InterviewQuestionsDraft, ReactionReport, SEATS
+from tests.test_audience_casting import CAST_GOOD
 from pipeline.idea import parse_idea, render_idea
 from pipeline.llm import MockCaller
 from pipeline.stages import interview
@@ -89,11 +90,12 @@ def test_kill_loop_questions_carry_the_objections():
     panel = ReactionReport(run_id="r", parent="s", kill=True,
                            kill_reasons=["mean desirability 2.3 is below 2.5"],
                            means={"desirability": 2.3, "clarity": 4.0, "feasibility": 3.5},
+                           cast=CAST_GOOD["personas"],
                            reactions=[
                                {"persona": p, "scores": {"desirability": 2, "clarity": 4, "feasibility": 3},
                                 "objections": [f"{p} objection one", f"{p} objection two"],
                                 "one_change": "change something"}
-                               for p in ("target_user", "skeptic", "operator")])
+                               for p in SEATS])
     caller = MockCaller({InterviewQuestionsDraft: QUESTIONS_GOOD})
     interview.questions(idea_text=IDEA, caller=caller, cfg=CFG, panel=panel)
     user = caller.calls[0]["user"]
@@ -129,14 +131,17 @@ def _events(monkeypatch, tmp_path, outcomes, answers, approvals):
             self.run_dir = tmp_path / "runs" / f"r{len(ran)}"
             self.run_dir.mkdir(parents=True, exist_ok=True)
             if status == "killed":
+                from pipeline.contracts import SEATS as _SEATS
+                from tests.test_audience_casting import CAST_GOOD as _CG
                 (self.run_dir / "03-panel.json").write_text(json.dumps({
                     "schema_version": "1", "stage": "panel", "run_id": "r", "parent": "s",
                     "kill": True, "kill_reasons": ["mean desirability 2.0 is below 2.5"],
                     "means": {"desirability": 2.0, "clarity": 4.0, "feasibility": 3.0},
+                    "cast": _CG["personas"],
                     "reactions": [
                         {"persona": p, "scores": {"desirability": 2, "clarity": 4, "feasibility": 3},
                          "objections": ["obj a", "obj b"], "one_change": "x"}
-                        for p in ("target_user", "skeptic", "operator")]}))
+                        for p in _SEATS]}))
 
     def fake_run_one(**kw):
         ran.append(kw)

@@ -9,8 +9,8 @@ import re
 
 from urllib.parse import urlparse
 
-from pipeline.config import EvidenceRules, PanelRules
-from pipeline.contracts import (Brief, BuildResult, DesignSpec, EvidencePack, Plan, ReactionReport,
+from pipeline.config import AudienceRules, EvidenceRules, PanelRules
+from pipeline.contracts import (AudiencePack, Brief, BuildResult, DesignSpec, EvidencePack, Plan, ReactionReport,
                                 SplitBuildResult, TechSpec, TestReport, UXFlows)
 from pipeline.idea import ParsedIdea, normalize
 from pipeline.stages.template import LOCKED_FILES
@@ -112,6 +112,30 @@ def evaluate_evidence(p: EvidencePack, rules: EvidenceRules, *, fetch) -> list[s
     return reasons
 
 
+def evaluate_audience(a: AudiencePack, rules: AudienceRules, *, fetch) -> list[str]:
+    """Same anti-fabrication oracles as evidence, applied to the audience research."""
+    reasons: list[str] = []
+    if a.web_search_requests < 1:
+        reasons.append("no web search was actually performed; the audience research is the model's memory")
+    if len(a.patterns) < rules.min_patterns:
+        reasons.append(f"only {len(a.patterns)} patterns, need at least {rules.min_patterns}")
+    domains = {urlparse(p.source_url).netloc for p in a.patterns}
+    if len(domains) < rules.min_domains:
+        reasons.append(f"patterns come from {len(domains)} domain(s), need at least {rules.min_domains}")
+    checked: dict[str, str | None] = {}
+    for p in a.patterns:
+        if p.source_url not in checked:
+            try:
+                status = fetch(p.source_url)
+                checked[p.source_url] = f"dead ({status})" if status in DEAD_STATUSES else None
+            except Exception as ex:
+                checked[p.source_url] = f"unreachable ({type(ex).__name__})"
+        problem = checked[p.source_url]
+        if problem:
+            reasons.append(f"source {problem}: {p.source_url}")
+    return reasons
+
+
 def evaluate_reaction(rep: ReactionReport, rules: PanelRules) -> list[str]:
     """Re-runs the deterministic arbiter and rejects a report whose verdict does not match.
     The model's scores are inputs; the kill decision must be the rule's, never the model's."""
@@ -119,7 +143,8 @@ def evaluate_reaction(rep: ReactionReport, rules: PanelRules) -> list[str]:
 
     reasons: list[str] = []
     means, kill, kill_reasons = arbitrate(rep.reactions, rules)
-    if len(rep.reactions) == 3 and is_boundary(means.desirability, rules):
+    from pipeline.contracts import SEATS
+    if len(rep.reactions) == len(SEATS) and is_boundary(means.desirability, rules):
         reasons.append(f"boundary verdict without a confirmation sample: mean desirability "
                        f"{means.desirability:.2f} is within {rules.confirm_margin} of {rules.min_mean_desirability}")
     if rep.means != means:

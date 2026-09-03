@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pipeline import evaluators
 from pipeline.config import Config
-from pipeline.contracts import Brief, Plan, UXFlows, UXFlowsDraft
+from pipeline.contracts import AudiencePack, Brief, Plan, UXFlows, UXFlowsDraft
 from pipeline.llm import StructuredCaller, call_with_retry
 from pipeline.stages import CallMeta
 
@@ -14,10 +14,14 @@ PROMPTS = Path(__file__).resolve().parents[1] / "prompts"
 
 
 def produce(*, brief: Brief, plan: Plan, parent_sha: str, caller: StructuredCaller,
-            cfg: Config) -> tuple[UXFlows, CallMeta]:
+            cfg: Config, audience: AudiencePack | None = None) -> tuple[UXFlows, CallMeta]:
     stage = cfg.stages["ux"]
     drop = {"run_id", "parent", "stage", "schema_version"}
-    user = (f"BRIEF:\n{brief.model_dump_json(indent=2, exclude=drop)}\n\n"
+    aud = ""
+    if audience is not None:
+        aud = ("\n\nAUDIENCE RESEARCH (the flows must respect every constraint and pattern):\n"
+               + audience.model_dump_json(indent=2, include={"patterns", "constraints"}))
+    user = (f"BRIEF:\n{brief.model_dump_json(indent=2, exclude=drop)}{aud}\n\n"
             f"PLAN FILES:\n{plan.model_dump_json(indent=2, include={'files'})}\n\n"
             "Produce the UXFlows. must_have_behaviors are indexed from 0; every index must be "
             "covered by at least one flow, every screen must appear in a flow.")

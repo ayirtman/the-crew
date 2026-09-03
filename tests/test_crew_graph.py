@@ -6,13 +6,15 @@ from pathlib import Path
 
 from pipeline import graph as G
 from pipeline.config import load_config
-from pipeline.contracts import (BriefDraft, BuildResult, CommandResult, DesignSpecDraft,
-                                EvidencePackDraft, PersonaReactionDraft, PlanDraft, RunManifest,
-                                SplitBuildResult, TechSpecDraft, Usage, UXFlowsDraft)
+from pipeline.contracts import (AudiencePackDraft, BriefDraft, BuildResult, CastingDraft,
+                                CommandResult, DesignSpecDraft, EvidencePackDraft,
+                                PersonaReactionDraft, PlanDraft, RunManifest, SplitBuildResult,
+                                TechSpecDraft, Usage, UXFlowsDraft)
 from pipeline.contracts import TestReport as Report
 from pipeline.llm import MockCaller
 from pipeline.stages import CallMeta
 from tests.test_crew_contracts import TECHSPEC_GOOD, UX_GOOD
+from tests.test_audience_casting import AUDIENCE_GOOD, CAST_GOOD
 from tests.test_evidence import GOOD as EVIDENCE_GOOD
 
 FIX = Path(__file__).parent / "fixtures"
@@ -59,6 +61,8 @@ def _caller():
     return MockCaller({
         BriefDraft: json.loads((FIX / "brief_good.json").read_text()),
         EvidencePackDraft: EVIDENCE_GOOD,
+        AudiencePackDraft: AUDIENCE_GOOD,
+        CastingDraft: CAST_GOOD,
         PersonaReactionDraft: PANEL_GOOD,
         PlanDraft: PLAN_CREW,
         TechSpecDraft: TECHSPEC_GOOD,
@@ -83,7 +87,7 @@ def _deps(tmp_path, *, file_content=None, verify_fails_first=False, repair_write
     """Crew deps: fake split build, sequenced fake verify, fake repair, fake audit/deploy/probe."""
     content = file_content or {}
 
-    def fake_split(*, app_dir, run_dir, brief, plan, design, parent_sha, cfg, artifact_prefix="x", popen=None):
+    def fake_split(*, app_dir, run_dir, brief, plan, design, parent_sha, cfg, artifact_prefix="x", popen=None, audience=None):
         for f in BACKEND_FILES + FRONTEND_FILES:
             p = Path(app_dir) / f
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -154,21 +158,21 @@ def test_crew_happy_path_pauses_at_publish_then_ships_and_probes(tmp_path):
     h = G.start(deps=deps, variant="crew", idea_path=_idea(tmp_path), idea_id="01", run_id="c1", yes=True)
     assert h.next == ("ship",)  # --yes skips the build pause, never the publish pause
     run_dir = tmp_path / "runs" / "c1"
-    for name in ("01-brief", "02-evidence", "03-panel", "04-plan", "05-techspec", "06-ux",
-                 "07-design", "08-build", "09-review", "10-verify", "11-security"):
+    for name in ("01-brief", "02-evidence", "03-audience", "04-panel", "05-plan", "06-techspec",
+                 "07-ux", "08-design", "09-build", "10-review", "11-verify", "12-security"):
         assert (run_dir / f"{name}.json").exists(), name
     out = h.resume()
     assert out.status == "success"
-    assert (run_dir / "16-ship.json").exists() and (run_dir / "17-analytics.json").exists()
+    assert (run_dir / "17-ship.json").exists() and (run_dir / "18-analytics.json").exists()
     assert not list(run_dir.glob("*-repair.json"))  # all green: repair never ran
-    ship = json.loads((run_dir / "16-ship.json").read_text())
+    ship = json.loads((run_dir / "17-ship.json").read_text())
     assert ship["url"] == "https://crew-app-xyz.vercel.app"
     assert deploy.calls and "--prod" in deploy.calls[0]["argv"]
     assert probes == ["https://crew-app-xyz.vercel.app"]
     m = _manifest(tmp_path, "c1")
-    assert [s.stage for s in m.stages] == ["intake", "evidence", "panel", "plan", "architect", "ux",
-                                           "ui", "build_split", "review", "verify", "security",
-                                           "ship", "analytics"]
+    assert [s.stage for s in m.stages] == ["intake", "evidence", "audience", "panel", "plan",
+                                           "architect", "ux", "ui", "build_split", "review",
+                                           "verify", "security", "ship", "analytics"]
 
 
 def test_crew_verify_failure_repairs_once_then_reverifies_all_three(tmp_path):
@@ -177,7 +181,7 @@ def test_crew_verify_failure_repairs_once_then_reverifies_all_three(tmp_path):
     out = h.resume()
     run_dir = tmp_path / "runs" / "c2"
     assert out.status == "success"
-    for name in ("12-repair", "13-review", "14-verify", "15-security", "16-ship"):
+    for name in ("13-repair", "14-review", "15-verify", "16-security", "17-ship"):
         assert (run_dir / f"{name}.json").exists(), name
 
 
@@ -189,7 +193,7 @@ def test_crew_security_failure_blocks_ship_when_repair_does_not_fix(tmp_path):
                   run_id="c3", yes=True)
     assert out.outcome is not None and out.outcome.status == "verify_failed"
     run_dir = tmp_path / "runs" / "c3"
-    assert (run_dir / "12-repair.json").exists() and (run_dir / "15-security.json").exists()
+    assert (run_dir / "13-repair.json").exists() and (run_dir / "16-security.json").exists()
     assert not list(run_dir.glob("*-ship.json"))
     assert not deploy.calls
 
@@ -241,8 +245,8 @@ def test_missing_planned_file_flows_to_repair_not_instant_death(tmp_path, monkey
     h = G.start(deps=deps, variant="crew", idea_path=_idea(tmp_path), idea_id="01", run_id="c7", yes=True)
     out = h.resume()
     run_dir = tmp_path / "runs" / "c7"
-    assert (run_dir / "09-review.json").exists()  # review caught it instead of the build gate
-    assert (run_dir / "12-repair.json").exists()
+    assert (run_dir / "10-review.json").exists()  # review caught it instead of the build gate
+    assert (run_dir / "13-repair.json").exists()
     assert out.status == "success"
 
 

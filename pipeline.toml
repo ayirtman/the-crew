@@ -35,6 +35,15 @@ max_attempts = 2
 max_output_tokens = 2500
 max_seconds = 300
 
+[stages.audience]
+model = "haiku"
+auth = "subscription"
+tools = "WebSearch"
+max_turns = 16
+max_attempts = 2
+max_output_tokens = 3000
+max_seconds = 420
+
 [stages.panel]
 model = "haiku"
 auth = "subscription"
@@ -122,6 +131,10 @@ next_build = 300
 
 [evidence]
 min_claims = 3
+min_domains = 2
+
+[audience]
+min_patterns = 4
 min_domains = 2
 
 [panel]

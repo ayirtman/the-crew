@@ -34,7 +34,7 @@ UX_GOOD = {
 
 def test_crew_variant_matches_the_diagram():
     assert VARIANTS["crew"] == (
-        "intake", "evidence", "panel", "plan", "architect", "ux", "ui",
+        "intake", "evidence", "audience", "panel", "plan", "architect", "ux", "ui",
         "build_split", "review", "verify", "security", "repair", "ship", "analytics")
 
 
