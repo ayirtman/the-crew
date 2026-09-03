@@ -221,3 +221,38 @@ def test_crew_panel_kill_is_still_terminal(tmp_path):
     h = G.start(deps=deps, variant="crew", idea_path=_idea(tmp_path), idea_id="01", run_id="c6", yes=True)
     assert h.outcome is not None and h.outcome.status == "killed"
     assert not list((tmp_path / "runs" / "c6").glob("*-plan.json"))
+
+
+def test_missing_planned_file_flows_to_repair_not_instant_death(tmp_path, monkeypatch):
+    # 2026-09-03: two full builds died at the build gate over one missing planned test file.
+    # In the crew, review owns that check and repair fixes it; build must not double-gate.
+    deps, deploy, probes = _deps(tmp_path, repair_writes={"tests/ui/page.test.tsx": "test"})
+    real_build = deps.build_split
+
+    def build_missing_one(**kw):
+        r, meta = real_build(**kw)
+        (Path(r.app_dir) / "tests/ui/page.test.tsx").unlink()
+        part_front = r.parts[1].model_copy(update={"files_written": ["app/page.tsx"]})
+        r = r.model_copy(update={"parts": [r.parts[0], part_front],
+                                 "files_written": sorted(set(r.files_written) - {"tests/ui/page.test.tsx"})})
+        return r, meta
+
+    deps = G.Deps(**{**deps.__dict__, "build_split": build_missing_one})
+    h = G.start(deps=deps, variant="crew", idea_path=_idea(tmp_path), idea_id="01", run_id="c7", yes=True)
+    out = h.resume()
+    run_dir = tmp_path / "runs" / "c7"
+    assert (run_dir / "09-review.json").exists()  # review caught it instead of the build gate
+    assert (run_dir / "12-repair.json").exists()
+    assert out.status == "success"
+
+
+def test_split_task_prompt_lists_each_roles_planned_files():
+    from pipeline.contracts import Brief, Plan
+    from pipeline.stages import build_split
+    b = Brief(run_id="r", idea_id="01", parent="s",
+              **json.loads((FIX / "brief_good.json").read_text()))
+    p = Plan(run_id="r", parent="s", constraints=[], **PLAN_CREW)
+    backend = build_split._task("backend", b, p, None)
+    frontend = build_split._task("frontend", b, p, None)
+    assert "tests/api/count.test.ts" in backend.split("YOU MUST WRITE")[1]
+    assert "tests/ui/page.test.tsx" in frontend.split("YOU MUST WRITE")[1]

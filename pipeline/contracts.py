@@ -136,7 +136,7 @@ class Brief(BriefDraft):
 
 # ---------------------------------------------------------------- Plan
 
-ALLOWED_DIRS = ("app/", "lib/", "tests/")
+ALLOWED_DIRS = ("app/", "lib/", "tests/", "components/")
 
 
 class PlannedFile(BaseModel):

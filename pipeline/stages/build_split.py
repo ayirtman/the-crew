@@ -27,7 +27,7 @@ PROMPTS = Path(__file__).resolve().parents[1] / "prompts"
 
 SCOPES: dict[str, tuple[str, ...]] = {
     "backend": ("app/api/", "lib/", "tests/api/", "tests/lib/"),
-    "frontend": ("app/page.tsx", "app/layout.tsx", "app/globals.css", "app/page.module.css", "tests/ui/"),
+    "frontend": ("app/page.tsx", "app/layout.tsx", "app/globals.css", "app/page.module.css", "tests/ui/", "components/"),
 }
 
 
@@ -62,6 +62,11 @@ def _task(role: str, brief: Brief, plan: Plan | None, design: DesignSpec | None)
     out = out.replace("{{PLAN}}", plan.model_dump_json(indent=2, exclude=drop) if plan else "none")
     if design is not None:
         out += "\n\nDESIGN:\n" + design.model_dump_json(indent=2, exclude=drop)
+    if plan is not None:
+        mine = [f.path for f in plan.files if in_scope(f.path, role)]
+        if mine:
+            out += ("\n\nYOU MUST WRITE every one of these files, at exactly these paths, "
+                    "before you stop:\n" + "\n".join(f"- {p}" for p in mine))
     return out
 
 

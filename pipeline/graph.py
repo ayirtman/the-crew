@@ -408,11 +408,15 @@ class _Run:
         return evaluators.evaluate_plan(p, brief)
 
     def _eval_build(self, r: BuildResult, state: PipelineState) -> list[str]:
-        p = artifacts.load(Path(state["plan_path"]), Plan) if state.get("plan_path") else None
+        # with a review stage downstream, planned-file coverage is review's check (repair can fix
+        # it there); double-gating at build killed full runs over one missing test file
+        p = None if "review" in self.nodes else (
+            artifacts.load(Path(state["plan_path"]), Plan) if state.get("plan_path") else None)
         return evaluators.evaluate_build(r, p)
 
     def _eval_split(self, r, state: PipelineState) -> list[str]:
-        p = artifacts.load(Path(state["plan_path"]), Plan) if state.get("plan_path") else None
+        p = None if "review" in self.nodes else (
+            artifacts.load(Path(state["plan_path"]), Plan) if state.get("plan_path") else None)
         return evaluators.evaluate_split_build(r, p)
 
     def _architect(self, state: PipelineState):

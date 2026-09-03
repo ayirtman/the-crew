@@ -1,69 +1,47 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+// Kit showcase. Builders: delete this page and write the real one — but build it like this.
+import { useState } from "react";
+import { AppShell } from "@/components/AppShell";
+import { Card } from "@/components/Card";
+import { BigButton } from "@/components/BigButton";
+import { ImageTile } from "@/components/ImageTile";
+import { ResultBanner } from "@/components/ResultBanner";
+import { ProgressDots } from "@/components/ProgressDots";
+import { LanguagePicker } from "@/components/LanguagePicker";
+import { TimerRing } from "@/components/TimerRing";
+import { StatPanel } from "@/components/StatPanel";
 
 export default function Home() {
+  const [lang, setLang] = useState("en");
+  const [picked, setPicked] = useState<string | null>(null);
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <AppShell palette="sky" title="Kit Showcase">
+      <Card>
+        <div className="flex items-center justify-between gap-4">
+          <ProgressDots value={2} total={5} />
+          <TimerRing remaining={42} total={60} />
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </Card>
+      <Card>
+        <div className="flex gap-4">
+          <ImageTile src="/assets/images/dog.svg" alt="dog" label="Dog"
+            state={picked === "dog" ? "correct" : "idle"} onSelect={() => setPicked("dog")} />
+          <ImageTile src="/assets/images/cat.svg" alt="cat" label="Cat"
+            state={picked === "cat" ? "wrong" : "idle"} onSelect={() => setPicked("cat")} />
         </div>
-      </main>
-    </div>
+      </Card>
+      {picked ? (
+        <ResultBanner variant={picked === "dog" ? "success" : "error"}>
+          {picked === "dog" ? "Yes! That is the dog 🎉" : "That was the cat — try again"}
+        </ResultBanner>
+      ) : null}
+      <Card>
+        <LanguagePicker languages={["en", "de", "tr", "es", "fr"]} selected={lang} onSelect={setLang} />
+      </Card>
+      <Card>
+        <StatPanel stats={[{ label: "Accuracy", value: "82%" }, { label: "Words", value: "14" }, { label: "Sessions", value: "6" }]} />
+      </Card>
+      <BigButton full onClick={() => setPicked(null)}>Play again</BigButton>
+    </AppShell>
   );
 }

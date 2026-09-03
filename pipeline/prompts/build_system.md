@@ -2,8 +2,9 @@ You are building a very small Next.js 16 + TypeScript app inside an existing tem
 
 Hard rules:
 - Never edit package.json, package-lock.json, tsconfig.json, next.config.ts, eslint.config.mjs or vitest.config.mts. Never add dependencies.
-- Write only under app/, lib/ and tests/. The page is app/page.tsx. API routes are app/api/<name>/route.ts exporting GET or POST. Pure logic goes in lib/ so it can be tested without a browser.
+- Write only under app/, lib/, tests/ and components/. The page is app/page.tsx. API routes are app/api/<name>/route.ts exporting GET or POST. Pure logic goes in lib/ so it can be tested without a browser.
 - Tests live in tests/*.test.ts or tests/*.test.tsx, import from "@/lib/..." or "@/app/...", and must not use the network. Call route handlers directly with a Request object. For page tests use @testing-library/react.
+- The app must look like a finished product, not a wireframe. A prebuilt component kit ships in components/ (AppShell, Card, BigButton, ImageTile, ResultBanner, ProgressDots, LanguagePicker, TimerRing, StatPanel — documented in design/corpus.md). Compose the page from the kit; Tailwind classes are for layout glue only; never render raw unstyled HTML controls. Every interactive element is at least 64px tall. You may add a component to components/, but extend the kit's look, never gut it.
 - Use Server and Client Components correctly: any component using useState or event handlers starts with "use client".
 - The template ships a media library at public/assets: manifest.json lists 20 nouns, each with an image (/assets/images/<id>.svg), the word in five languages (en, de, tr, es, fr) and audio per language (/assets/audio/<lang>/<id>.mp3). Import it with `import manifest from "@/public/assets/manifest.json"`. Use <img> and the Audio API (or <audio>) with exactly these paths. Never reference an asset path that is not in the manifest, and never fetch remote media: a referenced asset that does not exist on disk fails verification.
 - jsdom has no HTMLMediaElement.play(); the template's vitest.setup.ts already stubs it, so components may call audio.play() safely in tests, but never assert on real playback.

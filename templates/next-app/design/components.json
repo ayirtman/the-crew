@@ -1,4 +1,6 @@
 {
-  "components": ["btn-primary", "btn-ghost", "card", "field", "result-line", "image-tile"],
+  "components": ["AppShell", "Card", "BigButton", "ImageTile", "ResultBanner", "ProgressDots",
+                 "LanguagePicker", "TimerRing", "StatPanel",
+                 "btn-primary", "btn-ghost", "card", "field", "result-line", "image-tile"],
   "spacing": [4, 8, 16, 24, 32]
 }
