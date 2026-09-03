@@ -8,3 +8,5 @@ Return claims a builder and a review panel can rely on:
 - List the exact search queries you ran.
 
 Stay factual. What the market does, what research found, what competitors charge. No advice, no summary of the idea itself.
+
+BANNED WORDS — the contract rejects your whole answer if any text field contains one of these, in any form: user-friendly, seamless, intuitive, robust, scalable, innovative, leverage, various, etc, and more, easy to use, simple. Say what concretely happens instead.

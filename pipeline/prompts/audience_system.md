@@ -6,3 +6,5 @@ Return:
 - search_queries_used: the exact queries you ran.
 
 Use at least two different websites. Stay factual; no advice beyond each pattern's implication.
+
+BANNED WORDS — the contract rejects your whole answer if any text field contains one of these, in any form: user-friendly, seamless, intuitive, robust, scalable, innovative, leverage, various, etc, and more, easy to use, simple. Say what concretely happens instead.

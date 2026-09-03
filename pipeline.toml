@@ -32,7 +32,7 @@ model = "haiku"
 auth = "subscription"
 tools = "WebSearch"
 max_turns = 12
-max_attempts = 2
+max_attempts = 3
 max_output_tokens = 2500
 max_seconds = 300
 
@@ -41,7 +41,7 @@ model = "haiku"
 auth = "subscription"
 tools = "WebSearch"
 max_turns = 16
-max_attempts = 2
+max_attempts = 3
 max_output_tokens = 3000
 max_seconds = 420
 
@@ -50,7 +50,7 @@ model = "haiku"
 auth = "subscription"
 tools = "WebSearch"
 max_turns = 16
-max_attempts = 2
+max_attempts = 3
 max_output_tokens = 3000
 max_seconds = 420
 
