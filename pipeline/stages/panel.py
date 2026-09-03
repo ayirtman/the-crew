@@ -52,7 +52,8 @@ def _render_cast(spec: PersonaSpec) -> Path:
 
 def produce(*, brief: Brief, evidence: EvidencePack | None, audience: AudiencePack | None,
             parent_sha: str, caller: StructuredCaller, cfg: Config,
-            domain: DomainPack | None = None) -> tuple[ReactionReport, CallMeta]:
+            domain: DomainPack | None = None,
+            platform: str | None = None) -> tuple[ReactionReport, CallMeta]:
     stage = cfg.stages["panel"]
     drop = {"run_id", "parent", "stage", "schema_version"}
     brief_json = brief.model_dump_json(indent=2, exclude=drop)
@@ -65,6 +66,9 @@ def produce(*, brief: Brief, evidence: EvidencePack | None, audience: AudiencePa
     if domain is not None:
         research += "\n\nDOMAIN RESEARCH (what the field demands):\n" + domain.model_dump_json(
             indent=2, include={"non_negotiables"})
+    if platform:
+        research += ("\n\nPLATFORM GUARANTEES (the build system already enforces these; do not "
+                     "object to them as missing):\n" + platform)
 
     usage = Usage()
     cost, wall, turns, attempts = 0.0, 0, 0, 0

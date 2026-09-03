@@ -151,3 +151,16 @@ def test_evaluator_rejects_unconfirmed_boundary_verdict():
     rep = ReactionReport(run_id="r1", parent="s", cast=_cast(), reactions=rs, means=means,
                          kill=kill, kill_reasons=reasons)
     assert any("boundary" in r for r in evaluators.evaluate_reaction(rep, CFG.panel))
+
+
+def test_reactions_know_the_platform_guarantees(tmp_path):
+    # 2026-09-03: panelists objected to tap-target sizes the component kit already guarantees,
+    # and a rival scored feasibility 1 over disliked scope. Personas get score definitions and
+    # the platform's guarantees.
+    caller = SeqCaller({CastingDraft: CAST_GOOD}, [_draft()] * 7)
+    panel.produce(brief=_brief(), evidence=None, audience=_audience(), parent_sha="s",
+                  caller=caller, cfg=CFG, platform="Touch targets are at least 64px tall.")
+    react = [c for c in caller.calls if c["schema"].__name__ == "PersonaReactionDraft"][0]
+    assert "64px" in react["user"]
+    prompt = react["system_prompt_text"]
+    assert "feasibility" in prompt and "scope" in prompt

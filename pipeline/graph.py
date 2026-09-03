@@ -307,8 +307,11 @@ class _Run:
         dom = self._load_domain(state)
         parent = (state.get("domain_sha") or state.get("audience_sha")
                   or state.get("evidence_sha") or state["brief_sha"])
+        corpus = Path(self.deps.template_dir) / "design" / "corpus.md"
+        platform = corpus.read_text() if corpus.exists() else None
         rep, meta = panel_stage.produce(brief=brief, evidence=ev, audience=aud, domain=dom,
-                                        parent_sha=parent, caller=self.deps.caller, cfg=self.deps.cfg)
+                                        parent_sha=parent, caller=self.deps.caller, cfg=self.deps.cfg,
+                                        platform=platform)
         return rep, meta, []
 
     def _audience(self, state: PipelineState):
