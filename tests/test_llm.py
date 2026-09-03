@@ -132,7 +132,7 @@ def test_retry_gives_up_after_attempts_and_raises_last_reasons():
 
 
 def test_intake_and_plan_use_the_configured_attempts():
-    assert CFG.stages["intake"].max_attempts == 2 and CFG.stages["plan"].max_attempts == 2
+    assert CFG.stages["intake"].max_attempts == 3 and CFG.stages["plan"].max_attempts == 2
 
 
 def test_retry_also_feeds_back_check_reasons():
