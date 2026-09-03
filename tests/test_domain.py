@@ -70,3 +70,17 @@ def test_crew_gains_domain_station():
     i = VARIANTS["crew"].index
     assert i("audience") < i("domain") < i("panel")
     assert len(expand("crew")) == 19
+
+
+def test_one_dead_source_among_enough_live_findings_passes():
+    from pipeline.contracts import DomainPack
+    d = json.loads(json.dumps(DOMAIN_GOOD))
+    d["non_negotiables"].append({
+        "finding": "Early learners need the same noun repeated across at least three sessions",
+        "implication": "words rotate back in until mastered",
+        "source_url": "https://rot.example.net/gone", "source_title": "Rotted"})
+    p = DomainPack(run_id="r", parent="s", web_search_requests=2, **d)
+    from pipeline import evaluators
+    def fetch(url):
+        return 404 if "rot.example.net" in url else 200
+    assert evaluators.evaluate_domain(p, CFG.domain, fetch=fetch) == []

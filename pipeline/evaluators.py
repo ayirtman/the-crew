@@ -83,6 +83,23 @@ def evaluate_plan(p: Plan, b: Brief) -> list[str]:
 DEAD_STATUSES = (404, 410)
 
 
+def _live_sources(urls: list[str], fetch) -> tuple[set[str], dict[str, str]]:
+    """One fetch per unique URL. Returns (live urls, {dead url: why}). 403 is alive (bot-blocked);
+    404/410, DNS failures and timeouts are dead."""
+    live: set[str] = set()
+    dead: dict[str, str] = {}
+    for u in dict.fromkeys(urls):
+        try:
+            status = fetch(u)
+            if status in DEAD_STATUSES:
+                dead[u] = f"dead ({status})"
+            else:
+                live.add(u)
+        except Exception as ex:
+            dead[u] = f"unreachable ({type(ex).__name__})"
+    return live, dead
+
+
 def evaluate_evidence(p: EvidencePack, rules: EvidenceRules, *, fetch) -> list[str]:
     """Deterministic gates on researched evidence. `fetch(url) -> status_code` (may raise).
 
@@ -93,22 +110,15 @@ def evaluate_evidence(p: EvidencePack, rules: EvidenceRules, *, fetch) -> list[s
     reasons: list[str] = []
     if p.web_search_requests < 1:
         reasons.append("no web search was actually performed; the evidence is the model's memory")
-    if len(p.claims) < rules.min_claims:
-        reasons.append(f"only {len(p.claims)} claims, need at least {rules.min_claims}")
-    domains = {urlparse(c.source_url).netloc for c in p.claims}
+    live, dead = _live_sources([c.source_url for c in p.claims], fetch)
+    alive = [c for c in p.claims if c.source_url in live]
+    if len(alive) < rules.min_claims:
+        detail = "; ".join(f"source {why}: {u}" for u, why in dead.items())
+        reasons.append(f"only {len(alive)} claims with live sources, need at least {rules.min_claims}"
+                       + (f" ({detail})" if detail else ""))
+    domains = {urlparse(c.source_url).netloc for c in alive}
     if len(domains) < rules.min_domains:
-        reasons.append(f"claims come from {len(domains)} domain(s), need at least {rules.min_domains}")
-    checked: dict[str, str | None] = {}
-    for c in p.claims:
-        if c.source_url not in checked:
-            try:
-                status = fetch(c.source_url)
-                checked[c.source_url] = f"dead ({status})" if status in DEAD_STATUSES else None
-            except Exception as e:
-                checked[c.source_url] = f"unreachable ({type(e).__name__})"
-        problem = checked[c.source_url]
-        if problem:
-            reasons.append(f"source {problem}: {c.source_url}")
+        reasons.append(f"live claims come from {len(domains)} domain(s), need at least {rules.min_domains}")
     return reasons
 
 
@@ -117,22 +127,15 @@ def evaluate_audience(a: AudiencePack, rules: AudienceRules, *, fetch) -> list[s
     reasons: list[str] = []
     if a.web_search_requests < 1:
         reasons.append("no web search was actually performed; the audience research is the model's memory")
-    if len(a.patterns) < rules.min_patterns:
-        reasons.append(f"only {len(a.patterns)} patterns, need at least {rules.min_patterns}")
-    domains = {urlparse(p.source_url).netloc for p in a.patterns}
+    live, dead = _live_sources([p.source_url for p in a.patterns], fetch)
+    alive = [p for p in a.patterns if p.source_url in live]
+    if len(alive) < rules.min_patterns:
+        detail = "; ".join(f"source {why}: {u}" for u, why in dead.items())
+        reasons.append(f"only {len(alive)} patterns with live sources, need at least {rules.min_patterns}"
+                       + (f" ({detail})" if detail else ""))
+    domains = {urlparse(p.source_url).netloc for p in alive}
     if len(domains) < rules.min_domains:
-        reasons.append(f"patterns come from {len(domains)} domain(s), need at least {rules.min_domains}")
-    checked: dict[str, str | None] = {}
-    for p in a.patterns:
-        if p.source_url not in checked:
-            try:
-                status = fetch(p.source_url)
-                checked[p.source_url] = f"dead ({status})" if status in DEAD_STATUSES else None
-            except Exception as ex:
-                checked[p.source_url] = f"unreachable ({type(ex).__name__})"
-        problem = checked[p.source_url]
-        if problem:
-            reasons.append(f"source {problem}: {p.source_url}")
+        reasons.append(f"live patterns come from {len(domains)} domain(s), need at least {rules.min_domains}")
     return reasons
 
 
@@ -141,22 +144,15 @@ def evaluate_domain(d: DomainPack, rules: DomainRules, *, fetch) -> list[str]:
     reasons: list[str] = []
     if d.web_search_requests < 1:
         reasons.append("no web search was actually performed; the domain research is the model's memory")
-    if len(d.non_negotiables) < rules.min_findings:
-        reasons.append(f"only {len(d.non_negotiables)} findings, need at least {rules.min_findings}")
-    domains = {urlparse(f.source_url).netloc for f in d.non_negotiables}
+    live, dead = _live_sources([f.source_url for f in d.non_negotiables], fetch)
+    alive = [f for f in d.non_negotiables if f.source_url in live]
+    if len(alive) < rules.min_findings:
+        detail = "; ".join(f"source {why}: {u}" for u, why in dead.items())
+        reasons.append(f"only {len(alive)} findings with live sources, need at least {rules.min_findings}"
+                       + (f" ({detail})" if detail else ""))
+    domains = {urlparse(f.source_url).netloc for f in alive}
     if len(domains) < rules.min_domains:
-        reasons.append(f"findings come from {len(domains)} domain(s), need at least {rules.min_domains}")
-    checked: dict[str, str | None] = {}
-    for f in d.non_negotiables:
-        if f.source_url not in checked:
-            try:
-                status = fetch(f.source_url)
-                checked[f.source_url] = f"dead ({status})" if status in DEAD_STATUSES else None
-            except Exception as ex:
-                checked[f.source_url] = f"unreachable ({type(ex).__name__})"
-        problem = checked[f.source_url]
-        if problem:
-            reasons.append(f"source {problem}: {f.source_url}")
+        reasons.append(f"live findings come from {len(domains)} domain(s), need at least {rules.min_domains}")
     return reasons
 
 

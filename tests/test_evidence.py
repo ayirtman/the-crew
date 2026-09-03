@@ -115,3 +115,16 @@ def test_cli_caller_tools_flag_comes_from_stage_config():
     assert argv_ev[argv_ev.index("--tools") + 1] == "WebSearch"
     assert "--allowedTools" in argv_ev and argv_ev[argv_ev.index("--allowedTools") + 1] == "WebSearch"
     assert "--allowedTools" not in argv_intake
+
+
+def test_one_dead_source_among_enough_live_ones_passes():
+    # 2026-09-03: a single rotted URL killed a whole run. Fabrication is the enemy, not link rot:
+    # the gate is "enough claims with live sources", never "zero dead links".
+    d = json.loads(json.dumps(GOOD))
+    d["claims"].append({"statement": "Bilingual toddlers separate languages by speaker context",
+                        "source_url": "https://c.example.net/rotted", "source_title": "C study",
+                        "retrieved": True})
+    p = _pack({"claims": d["claims"]})
+    def fetch(url):
+        return 404 if "c.example.net" in url else 200
+    assert evaluators.evaluate_evidence(p, CFG.evidence, fetch=fetch) == []
