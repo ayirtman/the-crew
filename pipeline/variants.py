@@ -10,8 +10,10 @@ VARIANTS: dict[str, tuple[str, ...]] = {
     "v2p": ("intake", "evidence", "panel", "plan", "build", "verify", "repair"),
     "v2d": ("intake", "evidence", "panel", "plan", "design", "build", "verify", "repair"),
     "v2x": ("intake", "evidence", "panel", "plan", "design", "build_split", "verify", "repair"),
+    # the research phase alone: what develop runs before it interviews the human
+    "research": ("intake", "evidence", "audience", "domain"),
     # the-crew.svg, compiled: all 14 stations. review/verify/security are programs, not models.
-    "crew": ("intake", "evidence", "audience", "panel", "plan", "architect", "ux", "ui",
+    "crew": ("intake", "evidence", "audience", "domain", "panel", "plan", "architect", "ux", "ui",
              "build_split", "review", "verify", "security", "repair", "ship", "analytics"),
 }
 

@@ -79,11 +79,26 @@ def test_render_idea_without_nevers_omits_the_heading():
 # ---------------------------------------------------------------- the stage
 
 
-def test_upfront_questions_carry_the_idea():
+def test_questions_carry_the_idea():
     caller = MockCaller({InterviewQuestionsDraft: QUESTIONS_GOOD})
     qs, meta = interview.questions(idea_text=IDEA, caller=caller, cfg=CFG)
     assert [q.id for q in qs.questions] == ["Q1", "Q2", "Q3"]
     assert "counting words" in caller.calls[0]["user"]
+
+
+def test_questions_are_research_grounded():
+    from pipeline.contracts import AudiencePack, DomainPack
+    from tests.test_audience_casting import AUDIENCE_GOOD
+    from tests.test_domain import DOMAIN_GOOD
+    caller = MockCaller({InterviewQuestionsDraft: QUESTIONS_GOOD})
+    interview.questions(idea_text=IDEA, caller=caller, cfg=CFG,
+                        audience=AudiencePack(run_id="r", parent="s", **AUDIENCE_GOOD),
+                        domain=DomainPack(run_id="r", parent="s", **DOMAIN_GOOD),
+                        requirements=["count words (must)", "no accounts (never)"])
+    user = caller.calls[0]["user"]
+    assert "article" in user            # domain findings reach the interviewer
+    assert "cannot read" in user        # audience constraints reach the interviewer
+    assert "EXTRACTED REQUIREMENTS" in user and "count words" in user
 
 
 def test_kill_loop_questions_carry_the_objections():
@@ -158,28 +173,32 @@ def _events(monkeypatch, tmp_path, outcomes, answers, approvals):
     return R, idea, ran, ask, caller
 
 
-def test_develop_interviews_upfront_then_runs(monkeypatch, tmp_path):
-    R, idea, ran, ask, caller = _events(monkeypatch, tmp_path, outcomes=["success"],
+def test_develop_researches_then_interviews_then_runs(monkeypatch, tmp_path):
+    R, idea, ran, ask, caller = _events(monkeypatch, tmp_path, outcomes=["success", "success"],
                                         answers=["a1", "a2", "a3"], approvals=["y"])
     out = R.develop(root=tmp_path, graph="crew", idea_id=str(idea), yes=True, mock=False,
                     ask=ask, caller=caller)
-    assert out.status == "success" and len(ran) == 1
+    assert out.status == "success"
+    assert [kw["graph"] for kw in ran] == ["research", "crew"]  # research first, then the machine
     assert "parent-guided" in idea.read_text()  # the approved revision was written
     assert list(tmp_path.glob("idea.interview-*.md"))  # transcript saved beside the idea
 
 
 def test_develop_kill_reinterviews_at_most_twice(monkeypatch, tmp_path):
     R, idea, ran, ask, caller = _events(
-        monkeypatch, tmp_path, outcomes=["killed", "killed", "killed"],
-        answers=["a"] * 9, approvals=["y", "y", "y"])
+        monkeypatch, tmp_path, outcomes=["success", "killed", "killed", "killed"],
+        answers=["a"] * 12, approvals=["y", "y", "y"])
     out = R.develop(root=tmp_path, graph="crew", idea_id=str(idea), yes=True, mock=False,
                     ask=ask, caller=caller)
-    assert out.status == "killed" and len(ran) == 3  # initial + 2 loops; third kill is final
+    assert out.status == "killed"
+    assert [kw["graph"] for kw in ran] == ["research", "crew", "crew", "crew"]
 
 
 def test_develop_declined_revision_stops_without_running(monkeypatch, tmp_path):
-    R, idea, ran, ask, caller = _events(monkeypatch, tmp_path, outcomes=[],
+    R, idea, ran, ask, caller = _events(monkeypatch, tmp_path, outcomes=["success"],
                                         answers=["a1", "a2", "a3"], approvals=["n"])
     out = R.develop(root=tmp_path, graph="crew", idea_id=str(idea), yes=True, mock=False,
                     ask=ask, caller=caller)
-    assert out is None and ran == [] and "counting words" in idea.read_text()  # untouched
+    assert out is None
+    assert [kw["graph"] for kw in ran] == ["research"]  # research ran, the machine did not
+    assert "counting words" in idea.read_text()  # untouched

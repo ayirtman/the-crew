@@ -24,13 +24,13 @@ from pipeline import artifacts, evaluators
 from pipeline.artifacts import ArtifactError
 from pipeline.budget import BudgetExceeded, Ledger, canonical_model, cost_for
 from pipeline.config import Config
-from pipeline.contracts import (AudiencePack, Brief, BuildResult, DesignSpec, EvidencePack, Plan, ReviewReport,
+from pipeline.contracts import (AudiencePack, Brief, BuildResult, DesignSpec, DomainPack, EvidencePack, Plan, ReviewReport,
                                 RunManifest, SecurityReport, ShipRecord, StageFailure, StageRecord,
                                 TechSpec, TestReport, Usage, UXFlows)
 from pipeline.idea import parse_idea
 from pipeline.llm import CallerError, SchemaInvalid, StructuredCaller
 from pipeline.stages import (CallMeta, analytics as analytics_stage, architect as architect_stage,
-                             audience as audience_stage,
+                             audience as audience_stage, domain as domain_stage,
                              design as design_stage, evidence as evidence_stage, intake,
                              panel as panel_stage, plan as plan_stage, release as release_stage,
                              review as review_stage, security as security_stage, template,
@@ -43,12 +43,12 @@ log = logging.getLogger("pipeline")
 Variant = str
 # stage name -> artifact name (file stem) and state key prefix
 ARTIFACT_SPLIT = True
-ARTIFACT = {"intake": "brief", "evidence": "evidence", "audience": "audience", "panel": "panel", "plan": "plan",
+ARTIFACT = {"intake": "brief", "evidence": "evidence", "audience": "audience", "domain": "domain", "panel": "panel", "plan": "plan",
             "design": "design", "build": "build", "build_split": "build", "repair": "repair",
             "verify": "verify", "verify2": "verify", "architect": "techspec", "ux": "ux",
             "ui": "design", "review": "review", "review2": "review", "security": "security",
             "security2": "security", "ship": "ship", "analytics": "analytics"}
-STATE_KEY = {"intake": "brief", "evidence": "evidence", "audience": "audience", "panel": "panel", "plan": "plan",
+STATE_KEY = {"intake": "brief", "evidence": "evidence", "audience": "audience", "domain": "domain", "panel": "panel", "plan": "plan",
              "design": "design", "build": "build", "build_split": "build", "repair": "repair",
              "verify": "report", "verify2": "report2", "architect": "techspec", "ux": "ux",
              "ui": "design", "review": "review", "review2": "review2", "security": "security",
@@ -86,6 +86,8 @@ class PipelineState(TypedDict, total=False):
     evidence_sha: str
     audience_path: str
     audience_sha: str
+    domain_path: str
+    domain_sha: str
     panel_path: str
     panel_sha: str
     plan_path: str
@@ -302,9 +304,11 @@ class _Run:
         brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
         ev = self._load_evidence(state)
         aud = self._load_audience(state)
-        parent = state.get("audience_sha") or state.get("evidence_sha") or state["brief_sha"]
-        rep, meta = panel_stage.produce(brief=brief, evidence=ev, audience=aud, parent_sha=parent,
-                                        caller=self.deps.caller, cfg=self.deps.cfg)
+        dom = self._load_domain(state)
+        parent = (state.get("domain_sha") or state.get("audience_sha")
+                  or state.get("evidence_sha") or state["brief_sha"])
+        rep, meta = panel_stage.produce(brief=brief, evidence=ev, audience=aud, domain=dom,
+                                        parent_sha=parent, caller=self.deps.caller, cfg=self.deps.cfg)
         return rep, meta, []
 
     def _audience(self, state: PipelineState):
@@ -319,6 +323,20 @@ class _Run:
         if state.get("audience_path"):
             return artifacts.load(Path(state["audience_path"]), AudiencePack,
                                   expected_sha=state["audience_sha"])
+        return None
+
+    def _domain(self, state: PipelineState):
+        brief = artifacts.load(Path(state["brief_path"]), Brief, expected_sha=state["brief_sha"])
+        parent = state.get("audience_sha") or state.get("evidence_sha") or state["brief_sha"]
+        kw = {"fetch": self.deps.fetch} if self.deps.fetch else {}
+        pack, meta = domain_stage.produce(brief=brief, parent_sha=parent, caller=self.deps.caller,
+                                          cfg=self.deps.cfg, **kw)
+        return pack, meta, []
+
+    def _load_domain(self, state: PipelineState) -> DomainPack | None:
+        if state.get("domain_path"):
+            return artifacts.load(Path(state["domain_path"]), DomainPack,
+                                  expected_sha=state["domain_sha"])
         return None
 
     def _load_evidence(self, state: PipelineState) -> EvidencePack | None:
@@ -355,7 +373,7 @@ class _Run:
         result, meta = producer(
             app_dir=app_dir, run_dir=self.run_dir, brief=brief, plan=p, design=d, parent_sha=parent,
             cfg=self.deps.cfg, artifact_prefix=f"{self.seq['build_split']:02d}-build",
-            audience=self._load_audience(state))
+            audience=self._load_audience(state), domain=self._load_domain(state))
         return result, meta, []
 
     def _build(self, state: PipelineState):
@@ -450,7 +468,8 @@ class _Run:
         p = artifacts.load(Path(state["plan_path"]), Plan, expected_sha=state["plan_sha"])
         flows, meta = ux_stage.produce(brief=brief, plan=p, parent_sha=state["techspec_sha"],
                                        caller=self.deps.caller, cfg=self.deps.cfg,
-                                       audience=self._load_audience(state))
+                                       audience=self._load_audience(state),
+                                       domain=self._load_domain(state))
         return flows, meta, []
 
     def _ui(self, state: PipelineState):
@@ -460,7 +479,7 @@ class _Run:
             brief=brief, evidence=self._load_evidence(state), parent_sha=state["ux_sha"],
             components=design_stage.load_components(self.deps.template_dir),
             caller=self.deps.caller, cfg=self.deps.cfg, ux=uxf,
-            audience=self._load_audience(state))
+            audience=self._load_audience(state), domain=self._load_domain(state))
         return spec, meta, []
 
     def _load_build(self, state: PipelineState, key: str = "build"):
@@ -581,6 +600,7 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
     nodes = run.nodes
     producers = {
         "intake": run._intake, "evidence": run._evidence, "audience": run._audience,
+        "domain": run._domain,
         "panel": run._panel, "plan": run._plan,
         "design": run._design, "build": run._build, "build_split": run._build_split,
         "verify": run._verify, "verify2": run._verify2, "repair": run._repair,
@@ -600,6 +620,8 @@ def build_graph(run: _Run, variant: Variant, *, yes: bool):
             e, run.deps.cfg.evidence, fetch=run.deps.fetch or evidence_stage.default_fetch),
         "audience": lambda a, s: evaluators.evaluate_audience(
             a, run.deps.cfg.audience, fetch=run.deps.fetch or evidence_stage.default_fetch),
+        "domain": lambda d, s: evaluators.evaluate_domain(
+            d, run.deps.cfg.domain, fetch=run.deps.fetch or evidence_stage.default_fetch),
         "panel": lambda r, s: evaluators.evaluate_reaction(r, run.deps.cfg.panel),
         "design": lambda d, s: evaluators.evaluate_design(
             d, artifacts.load(Path(s["brief_path"]), Brief),
@@ -669,7 +691,7 @@ class Handle:
         parts = []
         for p in sorted(self.run.run_dir.glob("0*-*.json")):
             if p.name != "00-manifest.json" and not p.name.endswith((".rejected.json",)) \
-                    and p.stem.split("-", 1)[1] in ("brief", "evidence", "audience", "panel", "plan", "techspec",
+                    and p.stem.split("-", 1)[1] in ("brief", "evidence", "audience", "domain", "panel", "plan", "techspec",
                                                     "ux", "design"):
                 parts.append(f"--- {p.name} ---\n{p.read_text()}")
         return "\n".join(parts)

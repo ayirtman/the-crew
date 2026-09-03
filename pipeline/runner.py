@@ -157,10 +157,11 @@ def develop(*, root: Path, graph: str, idea_id: str, yes: bool, mock: bool, out=
     idea_id, idea_path = resolve_idea(root, idea_id)
     caller = caller or ClaudeCliCaller()
 
-    def one_interview(panel=None) -> bool:
+    def one_interview(panel=None, research=None) -> bool:
         """Interview, propose, diff, approve. Returns False if the human declined."""
         text = idea_path.read_text()
-        qs, _ = interview.questions(idea_text=text, caller=caller, cfg=cfg, panel=panel)
+        kw = dict(research or {})
+        qs, _ = interview.questions(idea_text=text, caller=caller, cfg=cfg, panel=panel, **kw)
         qa = []
         print("\n-- discovery interview" + (" (after a panel kill)" if panel else "") + " --", file=out)
         for q in qs.questions:
@@ -192,7 +193,36 @@ def develop(*, root: Path, graph: str, idea_id: str, yes: bool, mock: bool, out=
         print(f"idea revised; transcript at {transcript.name}", file=out)
         return True
 
-    if not one_interview():
+    # research first: the interviewer asks with findings in hand, not blind
+    print("\n-- research phase (intake, market, audience, domain) --", file=out)
+    research_out = run_one(root=root, graph="research", idea_id=str(idea_path), yes=yes,
+                           mock=mock, out=out)
+    research: dict = {}
+    reqs: list[str] = []
+    if research_out.status in ("success", "verify_failed"):
+        rd = Path(research_out.run_dir)
+        from pipeline.contracts import AudiencePack, Brief, DomainPack, EvidencePack
+
+        def _maybe(glob_pat, model):
+            hits = sorted(rd.glob(glob_pat))
+            return artifacts.load(hits[-1], model) if hits else None
+
+        ev = _maybe("*-evidence.json", EvidencePack)
+        aud = _maybe("*-audience.json", AudiencePack)
+        dom = _maybe("*-domain.json", DomainPack)
+        research = {"evidence": ev, "audience": aud, "domain": dom}
+        brief = _maybe("*-brief.json", Brief)
+        if brief is not None:
+            reqs = [f"{q.text} ({q.kind})" for q in brief.requirements]
+            if reqs:
+                print("\nExtracted requirements from your idea:", file=out)
+                for q in reqs:
+                    print(f"  - {q}", file=out)
+        research["requirements"] = reqs or None
+    else:
+        print(f"research phase ended {research_out.status}; interviewing without findings", file=out)
+
+    if not one_interview(research=research):
         return None
     kills = 0
     while True:

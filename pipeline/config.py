@@ -56,6 +56,12 @@ class AudienceRules(BaseModel):
     min_domains: int = 2
 
 
+class DomainRules(BaseModel):
+    model_config = FROZEN
+    min_findings: int = 3
+    min_domains: int = 2
+
+
 class PanelRules(BaseModel):
     model_config = FROZEN
     min_mean_desirability: float = 2.5
@@ -72,6 +78,7 @@ class Config(BaseModel):
     pricing: dict[str, Price]
     evidence: EvidenceRules = EvidenceRules()
     audience: AudienceRules = AudienceRules()
+    domain: DomainRules = DomainRules()
     panel: PanelRules = PanelRules()
     root: Path
 

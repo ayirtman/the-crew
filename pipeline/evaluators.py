@@ -9,8 +9,8 @@ import re
 
 from urllib.parse import urlparse
 
-from pipeline.config import AudienceRules, EvidenceRules, PanelRules
-from pipeline.contracts import (AudiencePack, Brief, BuildResult, DesignSpec, EvidencePack, Plan, ReactionReport,
+from pipeline.config import AudienceRules, DomainRules, EvidenceRules, PanelRules
+from pipeline.contracts import (AudiencePack, Brief, BuildResult, DesignSpec, DomainPack, EvidencePack, Plan, ReactionReport,
                                 SplitBuildResult, TechSpec, TestReport, UXFlows)
 from pipeline.idea import ParsedIdea, normalize
 from pipeline.stages.template import LOCKED_FILES
@@ -133,6 +133,30 @@ def evaluate_audience(a: AudiencePack, rules: AudienceRules, *, fetch) -> list[s
         problem = checked[p.source_url]
         if problem:
             reasons.append(f"source {problem}: {p.source_url}")
+    return reasons
+
+
+def evaluate_domain(d: DomainPack, rules: DomainRules, *, fetch) -> list[str]:
+    """Anti-fabrication oracles on the subject-matter research."""
+    reasons: list[str] = []
+    if d.web_search_requests < 1:
+        reasons.append("no web search was actually performed; the domain research is the model's memory")
+    if len(d.non_negotiables) < rules.min_findings:
+        reasons.append(f"only {len(d.non_negotiables)} findings, need at least {rules.min_findings}")
+    domains = {urlparse(f.source_url).netloc for f in d.non_negotiables}
+    if len(domains) < rules.min_domains:
+        reasons.append(f"findings come from {len(domains)} domain(s), need at least {rules.min_domains}")
+    checked: dict[str, str | None] = {}
+    for f in d.non_negotiables:
+        if f.source_url not in checked:
+            try:
+                status = fetch(f.source_url)
+                checked[f.source_url] = f"dead ({status})" if status in DEAD_STATUSES else None
+            except Exception as ex:
+                checked[f.source_url] = f"unreachable ({type(ex).__name__})"
+        problem = checked[f.source_url]
+        if problem:
+            reasons.append(f"source {problem}: {f.source_url}")
     return reasons
 
 

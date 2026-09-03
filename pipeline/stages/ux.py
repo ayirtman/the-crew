@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pipeline import evaluators
 from pipeline.config import Config
-from pipeline.contracts import AudiencePack, Brief, Plan, UXFlows, UXFlowsDraft
+from pipeline.contracts import AudiencePack, Brief, DomainPack, Plan, UXFlows, UXFlowsDraft
 from pipeline.llm import StructuredCaller, call_with_retry
 from pipeline.stages import CallMeta
 
@@ -14,10 +14,14 @@ PROMPTS = Path(__file__).resolve().parents[1] / "prompts"
 
 
 def produce(*, brief: Brief, plan: Plan, parent_sha: str, caller: StructuredCaller,
-            cfg: Config, audience: AudiencePack | None = None) -> tuple[UXFlows, CallMeta]:
+            cfg: Config, audience: AudiencePack | None = None,
+            domain: DomainPack | None = None) -> tuple[UXFlows, CallMeta]:
     stage = cfg.stages["ux"]
     drop = {"run_id", "parent", "stage", "schema_version"}
     aud = ""
+    if domain is not None:
+        aud += ("\n\nDOMAIN RESEARCH (what the field demands; non-negotiable):\n"
+                + domain.model_dump_json(indent=2, include={"non_negotiables"}))
     if audience is not None:
         aud = ("\n\nAUDIENCE RESEARCH (the flows must respect every constraint and pattern):\n"
                + audience.model_dump_json(indent=2, include={"patterns", "constraints"}))

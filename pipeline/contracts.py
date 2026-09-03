@@ -343,6 +343,55 @@ class AudiencePack(AudiencePackDraft):
     web_search_requests: int = 0
 
 
+# ---------------------------------------------------------------- Domain
+
+
+class DomainFinding(BaseModel):
+    model_config = STRICT
+    finding: str
+    implication: str
+    source_url: str
+    source_title: str
+
+    @field_validator("finding", "implication")
+    @classmethod
+    def _texts(cls, v: str, info) -> str:
+        if not 10 <= len(v) <= 300:
+            raise ValueError(f"{info.field_name}: must be 10 to 300 chars")
+        return check_vague(v, info.field_name)
+
+    @field_validator("source_url")
+    @classmethod
+    def _url(cls, v: str) -> str:
+        return _http(v, "source_url")
+
+
+class DomainPackDraft(BaseModel):
+    """What the subject matter itself demands the product get right. Born after the machine
+    shipped bare nouns in languages where the article is part of the word."""
+    model_config = STRICT
+    non_negotiables: list[DomainFinding]
+    search_queries_used: list[str]
+
+    @field_validator("non_negotiables")
+    @classmethod
+    def _findings(cls, v):
+        return _count(v, "non_negotiables", 3, 12)
+
+    @field_validator("search_queries_used")
+    @classmethod
+    def _q(cls, v):
+        return _count(v, "search_queries_used", 1, 12)
+
+
+class DomainPack(DomainPackDraft):
+    schema_version: Literal["1"] = "1"
+    stage: Literal["domain"] = "domain"
+    run_id: str
+    parent: str
+    web_search_requests: int = 0
+
+
 # ---------------------------------------------------------------- Panel
 
 # The focus group: seven fixed seats whose identities are cast per project from the research.

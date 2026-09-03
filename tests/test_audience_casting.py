@@ -111,4 +111,4 @@ def test_crew_variant_gains_audience_station():
     assert "audience" in VARIANTS["crew"]
     i = VARIANTS["crew"].index
     assert i("evidence") < i("audience") < i("panel")
-    assert len(expand("crew")) == 18
+    assert len(expand("crew")) == 19

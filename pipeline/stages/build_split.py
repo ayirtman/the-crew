@@ -16,7 +16,7 @@ from typing import Callable
 
 from pipeline.budget import BudgetExceeded
 from pipeline.config import Config
-from pipeline.contracts import (AudiencePack, Brief, BudgetSnapshot, BuildResult, DesignSpec, Plan,
+from pipeline.contracts import (AudiencePack, Brief, BudgetSnapshot, BuildResult, DesignSpec, DomainPack, Plan,
                                 SplitBuildResult)
 from pipeline.llm import STRIP_ENV
 from pipeline.stages import CallMeta
@@ -56,7 +56,7 @@ def _argv(prompt: str, cfg: Config) -> list[str]:
 
 
 def _task(role: str, brief: Brief, plan: Plan | None, design: DesignSpec | None,
-          audience: AudiencePack | None = None) -> str:
+          audience: AudiencePack | None = None, domain: DomainPack | None = None) -> str:
     drop = {"run_id", "parent", "stage", "schema_version"}
     tpl = (PROMPTS / f"build_task_split_{role}.md").read_text()
     out = tpl.replace("{{BRIEF}}", brief.model_dump_json(indent=2, exclude=drop))
@@ -66,6 +66,9 @@ def _task(role: str, brief: Brief, plan: Plan | None, design: DesignSpec | None,
     if audience is not None:
         out += ("\n\nAUDIENCE RESEARCH (hard requirements on interaction; the constraints are law):\n"
                 + audience.model_dump_json(indent=2, include={"patterns", "constraints"}))
+    if domain is not None:
+        out += ("\n\nDOMAIN RESEARCH (what the field demands; the implications are law):\n"
+                + domain.model_dump_json(indent=2, include={"non_negotiables"}))
     if plan is not None:
         mine = [f.path for f in plan.files if in_scope(f.path, role)]
         if mine:
@@ -76,7 +79,7 @@ def _task(role: str, brief: Brief, plan: Plan | None, design: DesignSpec | None,
 
 def produce(*, app_dir: Path, run_dir: Path, brief: Brief, plan: Plan | None,
             design: DesignSpec | None, parent_sha: str, cfg: Config,
-            audience: AudiencePack | None = None,
+            audience: AudiencePack | None = None, domain: DomainPack | None = None,
             popen: Callable = subprocess.Popen,
             artifact_prefix: str = "06-build") -> tuple[SplitBuildResult, CallMeta]:
     stage = cfg.stages["build_split"]
@@ -87,7 +90,7 @@ def produce(*, app_dir: Path, run_dir: Path, brief: Brief, plan: Plan | None,
 
     procs: dict[str, object] = {}
     for role in ("backend", "frontend"):
-        prompt = _task(role, brief, plan, design, audience)
+        prompt = _task(role, brief, plan, design, audience, domain)
         (run_dir / f"{artifact_prefix}.{role}.prompt.md").write_text(prompt)
         procs[role] = popen(_argv(prompt, cfg), cwd=app_dir, env=_env(), stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, start_new_session=True,

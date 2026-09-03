@@ -6,7 +6,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from pipeline.config import Config
-from pipeline.contracts import (IdeaRevisionDraft, InterviewQuestionsDraft, ReactionReport)
+from pipeline.contracts import (AudiencePack, DomainPack, EvidencePack, IdeaRevisionDraft,
+                                InterviewQuestionsDraft, ReactionReport)
 from pipeline.llm import StructuredCaller, call_with_retry
 from pipeline.stages import CallMeta
 
@@ -19,9 +20,21 @@ def _meta(res, stage) -> CallMeta:
 
 
 def questions(*, idea_text: str, caller: StructuredCaller, cfg: Config,
-              panel: ReactionReport | None = None):
+              panel: ReactionReport | None = None, evidence: EvidencePack | None = None,
+              audience: AudiencePack | None = None, domain: DomainPack | None = None,
+              requirements: list[str] | None = None):
     stage = cfg.stages["interview"]
     user = f"IDEA:\n\n{idea_text.strip()}\n\n"
+    if requirements:
+        user += ("EXTRACTED REQUIREMENTS (read this back to the owner; ask what is missing "
+                 "or wrong):\n" + "\n".join(f"- {r}" for r in requirements) + "\n\n")
+    if evidence is not None:
+        user += ("MARKET RESEARCH:\n" + evidence.model_dump_json(indent=2, include={"claims", "competitors"}) + "\n\n")
+    if audience is not None:
+        user += ("AUDIENCE RESEARCH:\n" + audience.model_dump_json(indent=2, include={"patterns", "constraints"}) + "\n\n")
+    if domain is not None:
+        user += ("DOMAIN RESEARCH (what the field demands):\n"
+                 + domain.model_dump_json(indent=2, include={"non_negotiables"}) + "\n\n")
     if panel is not None:
         obj = "\n".join(f"- [{r.persona}] {o}" for r in panel.reactions for o in r.objections)
         user += ("THE PANEL KILLED THIS IDEA.\nKill reasons:\n"
@@ -29,9 +42,12 @@ def questions(*, idea_text: str, caller: StructuredCaller, cfg: Config,
                  + f"\nObjections:\n{obj}\n\n"
                  "Turn the strongest objections into questions only the idea's owner can answer.")
     else:
-        user += ("First contact: interview the idea's owner before anything runs. Ask what a "
-                 "senior agency strategist would ask: who exactly, why now, why not the "
-                 "closest alternative, what is the wedge.")
+        user += ("Interview the idea's owner with the research in hand. Ask what a senior agency "
+                 "strategist would ask AFTER doing homework: where the research contradicts or "
+                 "extends the idea (a domain non-negotiable the idea ignores, an audience "
+                 "constraint it violates), which extracted requirement is wrong or missing, "
+                 "why not the closest competitor, what is the wedge. Every question should be "
+                 "one only the owner can answer, sharpened by a specific finding.")
     res = call_with_retry(caller, system_file=PROMPTS / "interview_system.md", user=user,
                           schema=InterviewQuestionsDraft, stage=stage, attempts=stage.max_attempts)
     return res.parsed, _meta(res, stage)

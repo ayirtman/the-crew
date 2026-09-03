@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 from pipeline.config import Config, PanelRules
-from pipeline.contracts import (AudiencePack, Brief, CastingDraft, EvidencePack, MeanScores,
+from pipeline.contracts import (AudiencePack, Brief, CastingDraft, DomainPack, EvidencePack, MeanScores,
                                 PersonaReaction, PersonaReactionDraft, PersonaSpec, ReactionReport,
                                 Usage)
 from pipeline.llm import StructuredCaller, call_with_retry
@@ -51,7 +51,8 @@ def _render_cast(spec: PersonaSpec) -> Path:
 
 
 def produce(*, brief: Brief, evidence: EvidencePack | None, audience: AudiencePack | None,
-            parent_sha: str, caller: StructuredCaller, cfg: Config) -> tuple[ReactionReport, CallMeta]:
+            parent_sha: str, caller: StructuredCaller, cfg: Config,
+            domain: DomainPack | None = None) -> tuple[ReactionReport, CallMeta]:
     stage = cfg.stages["panel"]
     drop = {"run_id", "parent", "stage", "schema_version"}
     brief_json = brief.model_dump_json(indent=2, exclude=drop)
@@ -61,6 +62,9 @@ def produce(*, brief: Brief, evidence: EvidencePack | None, audience: AudiencePa
     if audience is not None:
         research += "\n\nAUDIENCE RESEARCH:\n" + audience.model_dump_json(
             indent=2, include={"patterns", "constraints"})
+    if domain is not None:
+        research += "\n\nDOMAIN RESEARCH (what the field demands):\n" + domain.model_dump_json(
+            indent=2, include={"non_negotiables"})
 
     usage = Usage()
     cost, wall, turns, attempts = 0.0, 0, 0, 0
